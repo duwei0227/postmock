@@ -1,0 +1,41 @@
+{
+  "name": "postmock",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@codemirror/lang-html": "^6.4.11",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-xml": "^6.1.0",
+    "@codemirror/theme-one-dark": "^6.1.3",
+    "@primeuix/themes": "^2.0.3",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-http": "^2.5.7",
+    "@tauri-apps/plugin-opener": "^2",
+    "codemirror": "^6.0.2",
+    "nanoid": "^5.1.6",
+    "pinia": "^3.0.4",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.5.4",
+    "tailwindcss": "^3",
+    "tailwindcss-primeui": "^0.6.1",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@primevue/auto-import-resolver": "^4.5.4",
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "autoprefixer": "^10.4.24",
+    "postcss": "^8.5.6",
+    "unplugin-vue-components": "^31.0.0",
+    "vite": "^6.0.3"
+  }
+}
