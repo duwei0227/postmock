@@ -124,6 +124,38 @@ const hideSuggestions = () => {
     showSuggestions.value = false;
   }, 200);
 };
+
+// 检查变量是否存在
+const checkVariableExists = (varName) => {
+  return props.availableVariables.hasOwnProperty(varName);
+};
+
+// 检查输入值中是否有不存在的变量
+const hasInvalidVariables = computed(() => {
+  if (!props.modelValue) return false;
+  
+  console.log('[VariableInput] Checking invalid variables for:', props.modelValue);
+  console.log('[VariableInput] Available variables:', props.availableVariables);
+  console.log('[VariableInput] Available variables keys:', Object.keys(props.availableVariables));
+  
+  // 使用正则表达式匹配 {{variable}}
+  const regex = /\{\{([^}]+)\}\}/g;
+  let match;
+  
+  while ((match = regex.exec(props.modelValue)) !== null) {
+    const varName = match[1].trim();
+    const exists = checkVariableExists(varName);
+    console.log(`[VariableInput] Variable "${varName}" exists:`, exists);
+    
+    if (!exists) {
+      console.log('[VariableInput] Found invalid variable:', varName);
+      return true; // 找到不存在的变量
+    }
+  }
+  
+  console.log('[VariableInput] No invalid variables found');
+  return false;
+});
 </script>
 
 <template>
@@ -133,7 +165,7 @@ const hideSuggestions = () => {
       :modelValue="modelValue"
       :placeholder="placeholder"
       :size="size"
-      class="w-full"
+      :class="['w-full', { 'invalid-variable': hasInvalidVariables }]"
       @input="handleInput"
       @focus="handleFocus"
       @blur="hideSuggestions"
@@ -164,5 +196,23 @@ const hideSuggestions = () => {
 <style scoped>
 .variable-input-wrapper {
   position: relative;
+}
+
+/* 不存在的变量显示红色 - 使用更强的选择器 */
+:deep(.invalid-variable.p-inputtext) {
+  color: #ef4444 !important;
+}
+
+:deep(.p-dark .invalid-variable.p-inputtext) {
+  color: #f87171 !important;
+}
+
+/* 备用选择器 */
+:deep(.invalid-variable input) {
+  color: #ef4444 !important;
+}
+
+:deep(.p-dark .invalid-variable input) {
+  color: #f87171 !important;
 }
 </style>
