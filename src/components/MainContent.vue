@@ -346,6 +346,11 @@ const handleRequestDeleted = (requestId) => {
   }
 };
 
+const handleRequestDuplicated = (requestId) => {
+  // 打开新创建的 duplicated request
+  appStateStore.addOpenRequest(requestId);
+};
+
 const handleSaveRequest = async (saveData) => {
   const { request, collection, folder } = saveData;
   
@@ -463,6 +468,7 @@ defineExpose({
             @add-request="handleAddRequest"
             @open-request="handleOpenRequest"
             @request-deleted="handleRequestDeleted"
+            @request-duplicated="handleRequestDuplicated"
           />
         </TabPanel>
       </TabView>

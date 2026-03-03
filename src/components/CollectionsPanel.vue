@@ -17,7 +17,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['add-request', 'open-request', 'request-added', 'request-deleted']);
+const emit = defineEmits(['add-request', 'open-request', 'request-added', 'request-deleted', 'request-duplicated']);
 
 // Store
 const collections = computed(() => collectionsStore.collections);
@@ -404,6 +404,13 @@ const duplicateRequest = async (collection, request, folder) => {
       updatedAt: new Date().toISOString()
     };
     
+    // 清除所有临时属性（以 _ 开头的属性）
+    Object.keys(newRequest).forEach(key => {
+      if (key.startsWith('_')) {
+        delete newRequest[key];
+      }
+    });
+    
     await requestsStore.saveRequest(newRequest);
     await collectionsStore.addRequestReference(
       collection.id,
@@ -413,6 +420,12 @@ const duplicateRequest = async (collection, request, folder) => {
       newRequest.url,
       folder?.id
     );
+    
+    // 自动选中新创建的 request
+    selectRequestNode(newRequest.id, collection.id, folder?.id);
+    
+    // 通知 MainContent 打开新创建的 request
+    emit('request-duplicated', newRequest.id);
     
     if (window.$toast) {
       window.$toast.add({
@@ -479,6 +492,14 @@ const duplicateFolder = async (collection, folder) => {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           };
+          
+          // 清除所有临时属性（以 _ 开头的属性）
+          Object.keys(newRequest).forEach(key => {
+            if (key.startsWith('_')) {
+              delete newRequest[key];
+            }
+          });
+          
           await requestsStore.saveRequest(newRequest);
         }
       }
@@ -554,6 +575,14 @@ const duplicateCollection = async (collection) => {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
+        
+        // 清除所有临时属性（以 _ 开头的属性）
+        Object.keys(newRequest).forEach(key => {
+          if (key.startsWith('_')) {
+            delete newRequest[key];
+          }
+        });
+        
         await requestsStore.saveRequest(newRequest);
       }
     }
@@ -787,9 +816,63 @@ const handleImportCollection = async () => {
   }
 };
 
+// 选中指定的 request 节点
+const selectRequestNode = (requestId, collectionId, folderId) => {
+  // 构建节点的 key
+  let key = `collection/${collectionId}`;
+  
+  if (folderId) {
+    // 需要找到 folder 的完整路径
+    const collection = collections.value.find(c => c.id === collectionId);
+    if (collection) {
+      const folderPath = findFolderPath(collection.folders || [], folderId);
+      if (folderPath) {
+        key = `${key}/${folderPath.join('/')}`;
+      }
+    }
+  }
+  
+  key = `${key}/request/${requestId}`;
+  
+  // 展开父节点
+  const expandParents = (nodeKey) => {
+    const parts = nodeKey.split('/');
+    const newExpandedKeys = { ...expandedKeys.value };
+    
+    // 展开所有父节点
+    for (let i = 2; i < parts.length - 1; i += 2) {
+      const parentKey = parts.slice(0, i + 1).join('/');
+      newExpandedKeys[parentKey] = true;
+    }
+    
+    expandedKeys.value = newExpandedKeys;
+  };
+  
+  expandParents(key);
+  
+  // 选中节点
+  selectedKeys.value = { [key]: true };
+};
+
+// 查找 folder 的路径
+const findFolderPath = (folders, targetId, currentPath = []) => {
+  for (const folder of folders) {
+    const path = [...currentPath, folder.id];
+    if (folder.id === targetId) {
+      return path;
+    }
+    if (folder.folders && folder.folders.length > 0) {
+      const found = findFolderPath(folder.folders, targetId, path);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
 // Expose methods
 defineExpose({
-  collections
+  collections,
+  selectRequestNode
 });
 </script>
 
