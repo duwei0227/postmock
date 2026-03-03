@@ -408,7 +408,7 @@ defineExpose({
 <template>
   <div class="main-content flex-1 flex overflow-hidden">
     <!-- Sidebar -->
-    <aside class="w-80 bg-surface-100 dark:bg-surface-900 border-r border-surface-200 dark:border-surface-700 flex flex-col">
+    <aside class="w-80 bg-surface-0 dark:bg-surface-950 border-r border-surface-200 dark:border-surface-700 flex flex-col">
       <!-- Search Box -->
       <div class="p-3 border-b border-surface-200 dark:border-surface-700">
         <IconField iconPosition="left">
@@ -446,7 +446,7 @@ defineExpose({
     <!-- Request Editor -->
     <main class="flex-1 bg-surface-0 dark:bg-surface-950 flex flex-col overflow-hidden">
       <!-- Top Toolbar with Tabs -->
-      <div class="flex items-center border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800">
+      <div class="flex items-center border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-950">
         <!-- Request Tabs -->
         <div class="flex-1 flex items-center gap-1 px-2 py-1 overflow-x-auto">
           <div 

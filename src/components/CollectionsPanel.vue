@@ -694,7 +694,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="p-2">
+  <div class="p-2 bg-surface-0 dark:bg-surface-950">
     <div class="mb-2 flex gap-2">
       <Button 
         @click="openCreateDialog('collection')"

@@ -161,7 +161,7 @@ const formatTime = (timestamp) => {
 
 <template>
   <footer 
-    class="footer bg-surface-50 dark:bg-surface-900 border-t border-surface-200 dark:border-surface-700 flex flex-col absolute bottom-0 left-0 right-0 z-10" 
+    class="footer bg-surface-0 dark:bg-surface-950 border-t border-surface-200 dark:border-surface-700 flex flex-col absolute bottom-0 left-0 right-0 z-10" 
     :style="{ height: isCollapsed ? 'auto' : `${footerHeight}px` }"
   >
     <!-- Resize Handle (always visible) -->

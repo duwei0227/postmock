@@ -73,7 +73,7 @@ onMounted(async () => {
 
 <template>
   <nav 
-    class="navbar bg-surface-50 dark:bg-surface-900 text-surface-900 dark:text-surface-50 px-4 py-2 border-b border-surface-200 dark:border-surface-700 select-none"
+    class="navbar bg-surface-0 dark:bg-surface-950 text-surface-900 dark:text-surface-50 px-4 py-2 border-b border-surface-200 dark:border-surface-700 select-none"
     @mousedown="handleTitlebarMouseDown"
   >
     <div class="flex items-center justify-between">

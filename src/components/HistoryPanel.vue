@@ -83,7 +83,7 @@ defineExpose({
       v-for="item in filteredHistoryItems" 
       :key="item.id"
       @dblclick="openFromHistory(item)"
-      class="p-2 mb-1 rounded hover:bg-surface-200 dark:hover:bg-surface-800 cursor-pointer transition"
+      class="p-2 mb-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800 cursor-pointer transition"
     >
       <div class="flex items-center gap-2 mb-1">
         <span :class="['text-xs font-semibold', getMethodColor(item.method)]">
