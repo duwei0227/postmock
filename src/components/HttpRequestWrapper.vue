@@ -55,6 +55,22 @@ onMounted(async () => {
   }
 });
 
+// 监听 store 中的 request 变化（例如从 CollectionsPanel rename）
+watch(
+  () => requestsStore.requests.get(props.requestId),
+  (newRequest) => {
+    if (newRequest && request.value) {
+      // 只更新名称，不影响其他正在编辑的内容
+      if (newRequest.name !== request.value.name) {
+        console.log('[HttpRequestWrapper] Request name changed in store, updating:', newRequest.name);
+        request.value.name = newRequest.name;
+        originalRequest.value.name = newRequest.name;
+      }
+    }
+  },
+  { deep: true }
+);
+
 // 检查请求是否有变化
 const hasChanges = (newRequest) => {
   if (!originalRequest.value) return true;
