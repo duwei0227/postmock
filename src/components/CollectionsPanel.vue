@@ -17,7 +17,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['add-request', 'open-request', 'request-added']);
+const emit = defineEmits(['add-request', 'open-request', 'request-added', 'request-deleted']);
 
 // Store
 const collections = computed(() => collectionsStore.collections);
@@ -289,7 +289,8 @@ const handleDuplicate = async () => {
 
 const handleRename = () => {
   if (!contextMenuNode.value) return;
-  renamingItem.value = contextMenuNode.value.data;
+  // 深拷贝 node.data，避免引用问题
+  renamingItem.value = JSON.parse(JSON.stringify(contextMenuNode.value.data));
   renameItemName.value = contextMenuNode.value.data.name;
   showRenameDialog.value = true;
 };
@@ -310,10 +311,20 @@ const handleDelete = () => {
       if (node.data.type === 'request') {
         await collectionsStore.removeRequestReference(collection.id, node.data.id);
         await requestsStore.deleteRequest(node.data.id);
+        // 通知 MainContent 关闭对应的 Tab
+        emit('request-deleted', node.data.id);
       } else if (node.data.type === 'folder') {
+        // 收集 folder 中的所有 request IDs
+        const requestIds = collectAllRequestIds(node.data);
         await collectionsStore.deleteFolder(collection.id, node.data.id);
+        // 通知 MainContent 关闭所有相关的 Tabs
+        requestIds.forEach(id => emit('request-deleted', id));
       } else if (node.data.type === 'collection') {
+        // 收集 collection 中的所有 request IDs
+        const requestIds = collectAllRequestIds(node.data);
         await collectionsStore.deleteCollection(node.data.id);
+        // 通知 MainContent 关闭所有相关的 Tabs
+        requestIds.forEach(id => emit('request-deleted', id));
       }
     }
   });
@@ -438,12 +449,14 @@ const duplicateFolder = async (collection, folder) => {
     };
     
     const newFolder = duplicateStructure(folder);
-    await collectionsStore.addFolder(collection.id, newFolder.name, null);
     
-    const updatedCollection = collections.value.find(c => c.id === collection.id);
-    const createdFolder = updatedCollection.folders.find(f => f.name === newFolder.name);
+    // addFolder 返回新创建的 folder 对象，直接使用它而不是通过名称查找
+    const createdFolder = await collectionsStore.addFolder(collection.id, newFolder.name, null);
     
     if (createdFolder) {
+      // 更新 folderIdMap，将源 folder 的 ID 映射到实际创建的 folder ID
+      folderIdMap.set(folder.id, createdFolder.id);
+      
       await collectionsStore.updateFolder(collection.id, createdFolder.id, {
         folders: newFolder.folders,
         requests: newFolder.requests

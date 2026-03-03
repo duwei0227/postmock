@@ -335,6 +335,17 @@ const handleOpenRequest = (requestData) => {
   appStateStore.addOpenRequest(request.id);
 };
 
+const handleRequestDeleted = (requestId) => {
+  // 从打开的 tabs 中移除被删除的 request
+  const requests = [...openRequests.value];
+  const index = requests.indexOf(requestId);
+  
+  if (index !== -1) {
+    requests.splice(index, 1);
+    appStateStore.updateOpenRequests(requests);
+  }
+};
+
 const handleSaveRequest = async (saveData) => {
   const { request, collection, folder } = saveData;
   
@@ -451,6 +462,7 @@ defineExpose({
             :searchQuery="searchQuery"
             @add-request="handleAddRequest"
             @open-request="handleOpenRequest"
+            @request-deleted="handleRequestDeleted"
           />
         </TabPanel>
       </TabView>
