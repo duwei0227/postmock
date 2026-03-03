@@ -368,12 +368,30 @@ watch(() => {
 
 // 替换变量的辅助函数
 const replaceVariables = (str) => {
+  if (!str || typeof str !== 'string') return str;
+  
+  console.log('[HttpRequest] replaceVariables called with:', str);
+  
   if (props.environmentManager) {
-    const manager = props.environmentManager.value;
+    // environmentManager 可能直接是组件实例，也可能是 ref
+    let manager = props.environmentManager;
+    
+    // 如果是 ref，通过 .value 访问
+    if (manager && manager.value) {
+      manager = manager.value;
+    }
+    
+    console.log('[HttpRequest] Manager:', manager);
+    console.log('[HttpRequest] Manager has replaceVariables:', typeof manager?.replaceVariables);
+    
     if (manager && typeof manager.replaceVariables === 'function') {
-      return manager.replaceVariables(str);
+      const result = manager.replaceVariables(str);
+      console.log('[HttpRequest] Replaced result:', result);
+      return result;
     }
   }
+  
+  console.log('[HttpRequest] No replacement, returning original:', str);
   return str;
 };
 

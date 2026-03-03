@@ -1,24 +1,38 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
+import { useEnvironmentsStore } from '@/stores/environments';
 
 const confirm = useConfirm();
+const environmentsStore = useEnvironmentsStore();
 
 const showEnvDialog = ref(false);
 const envDialogMode = ref('list'); // 'list', 'add', 'edit'
-const currentEnvironment = ref(null); // 当前选中的环境
-const environments = ref([]);
 const editingEnv = ref({
+  id: '',
   name: '',
-  variables: [{ key: '', value: '' }]
+  variables: [{ key: '', value: '', enabled: true }]
 });
 const hoveredVariableIndex = ref(-1);
+
+// 使用 store 中的数据
+const currentEnvironment = computed({
+  get: () => environmentsStore.activeEnvironmentId,
+  set: (value) => environmentsStore.setActiveEnvironment(value)
+});
+
+const environments = computed(() => environmentsStore.environments);
 
 const environmentOptions = computed(() => {
   return [
     { label: 'No Environment', value: null },
     ...environments.value.map(env => ({ label: env.name, value: env.id }))
   ];
+});
+
+// 加载环境数据
+onMounted(async () => {
+  await environmentsStore.loadEnvironments();
 });
 
 // 环境管理函数
@@ -30,8 +44,9 @@ const openEnvDialog = () => {
 const openAddEnv = () => {
   envDialogMode.value = 'add';
   editingEnv.value = {
+    id: '',
     name: '',
-    variables: [{ key: '', value: '' }]
+    variables: [{ key: '', value: '', enabled: true }]
   };
 };
 
@@ -41,11 +56,11 @@ const openEditEnv = (env) => {
   // 确保至少有一个空行
   if (editingEnv.value.variables.length === 0 || 
       editingEnv.value.variables[editingEnv.value.variables.length - 1].key) {
-    editingEnv.value.variables.push({ key: '', value: '' });
+    editingEnv.value.variables.push({ key: '', value: '', enabled: true });
   }
 };
 
-const saveEnvironment = () => {
+const saveEnvironment = async () => {
   if (!editingEnv.value.name.trim()) {
     if (window.$toast) {
       window.$toast.add({
@@ -58,32 +73,32 @@ const saveEnvironment = () => {
     return;
   }
 
-  // 过滤掉空的变量
-  const filteredVariables = editingEnv.value.variables.filter(v => v.key.trim());
+  try {
+    // 过滤掉空的变量
+    const filteredVariables = editingEnv.value.variables.filter(v => v.key.trim());
 
-  if (envDialogMode.value === 'add') {
-    const newEnv = {
-      id: Date.now(),
-      name: editingEnv.value.name.trim(),
-      variables: filteredVariables
-    };
-    environments.value.push(newEnv);
-    
-    if (window.$toast) {
-      window.$toast.add({
-        severity: 'success',
-        summary: 'Success',
-        detail: 'Environment created successfully',
-        life: 2000
-      });
-    }
-  } else if (envDialogMode.value === 'edit') {
-    const index = environments.value.findIndex(e => e.id === editingEnv.value.id);
-    if (index !== -1) {
-      environments.value[index] = {
-        ...editingEnv.value,
+    if (envDialogMode.value === 'add') {
+      await environmentsStore.createEnvironment(editingEnv.value.name.trim());
+      const newEnv = environments.value[environments.value.length - 1];
+      if (filteredVariables.length > 0) {
+        await environmentsStore.updateEnvironment(newEnv.id, {
+          variables: filteredVariables
+        });
+      }
+      
+      if (window.$toast) {
+        window.$toast.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'Environment created successfully',
+          life: 2000
+        });
+      }
+    } else if (envDialogMode.value === 'edit') {
+      await environmentsStore.updateEnvironment(editingEnv.value.id, {
+        name: editingEnv.value.name.trim(),
         variables: filteredVariables
-      };
+      });
       
       if (window.$toast) {
         window.$toast.add({
@@ -94,9 +109,19 @@ const saveEnvironment = () => {
         });
       }
     }
-  }
 
-  envDialogMode.value = 'list';
+    envDialogMode.value = 'list';
+  } catch (error) {
+    console.error('Failed to save environment:', error);
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Failed to save environment',
+        life: 3000
+      });
+    }
+  }
 };
 
 const cancelEnvEdit = () => {
@@ -114,19 +139,28 @@ const deleteEnvironment = (envId) => {
     acceptLabel: '删除',
     rejectLabel: '取消',
     acceptClass: 'p-button-danger',
-    accept: () => {
-      environments.value = environments.value.filter(e => e.id !== envId);
-      if (currentEnvironment.value === envId) {
-        currentEnvironment.value = null;
-      }
-      
-      if (window.$toast) {
-        window.$toast.add({
-          severity: 'success',
-          summary: 'Success',
-          detail: 'Environment deleted successfully',
-          life: 2000
-        });
+    accept: async () => {
+      try {
+        await environmentsStore.deleteEnvironment(envId);
+        
+        if (window.$toast) {
+          window.$toast.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: 'Environment deleted successfully',
+            life: 2000
+          });
+        }
+      } catch (error) {
+        console.error('Failed to delete environment:', error);
+        if (window.$toast) {
+          window.$toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to delete environment',
+            life: 3000
+          });
+        }
       }
     }
   });
@@ -144,7 +178,7 @@ const onVariableChange = () => {
   if (lastVar && (lastVar.key || lastVar.value)) {
     const hasEmptyRow = editingEnv.value.variables.some(v => !v.key && !v.value);
     if (!hasEmptyRow) {
-      editingEnv.value.variables.push({ key: '', value: '' });
+      editingEnv.value.variables.push({ key: '', value: '', enabled: true });
     }
   }
 };
@@ -163,7 +197,7 @@ const getCurrentEnvironmentVariables = () => {
   
   const vars = {};
   env.variables.forEach(v => {
-    if (v.key) {
+    if (v.key && v.enabled !== false) {
       vars[v.key] = v.value;
     }
   });
@@ -190,11 +224,19 @@ const replaceVariables = (str) => {
   if (!str || typeof str !== 'string') return str;
   
   const allVars = getAllAvailableVariables();
+  console.log('[EnvironmentManager] replaceVariables called');
+  console.log('[EnvironmentManager] Input string:', str);
+  console.log('[EnvironmentManager] Available variables:', allVars);
   
-  return str.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
+  const result = str.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
     const trimmedVarName = varName.trim();
-    return allVars[trimmedVarName] !== undefined ? allVars[trimmedVarName] : match;
+    const replacement = allVars[trimmedVarName] !== undefined ? allVars[trimmedVarName] : match;
+    console.log(`[EnvironmentManager] Replacing ${match} with ${replacement}`);
+    return replacement;
   });
+  
+  console.log('[EnvironmentManager] Result:', result);
+  return result;
 };
 
 defineExpose({
