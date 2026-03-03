@@ -338,11 +338,31 @@ const handleOpenRequest = (requestData) => {
 const handleRequestDeleted = (requestId) => {
   // 从打开的 tabs 中移除被删除的 request
   const requests = [...openRequests.value];
-  const index = requests.indexOf(requestId);
+  const deletedIndex = requests.indexOf(requestId);
   
-  if (index !== -1) {
-    requests.splice(index, 1);
+  if (deletedIndex !== -1) {
+    requests.splice(deletedIndex, 1);
+    
+    // 更新打开的请求列表
     appStateStore.updateOpenRequests(requests);
+    
+    // 调整 activeRequestIndex
+    if (requests.length === 0) {
+      // 如果没有打开的 tab 了，重置为 -1（显示默认页面）
+      appStateStore.setActiveRequest(-1);
+    } else if (deletedIndex <= activeRequestIndex.value) {
+      // 如果删除的是当前选中的 tab 或之前的 tab
+      if (deletedIndex === activeRequestIndex.value) {
+        // 删除的是当前选中的 tab
+        // 如果删除的是最后一个 tab，选中前一个；否则保持当前索引（会自动选中下一个）
+        const newIndex = deletedIndex >= requests.length ? requests.length - 1 : deletedIndex;
+        appStateStore.setActiveRequest(newIndex);
+      } else {
+        // 删除的是当前选中 tab 之前的 tab，索引需要前移
+        appStateStore.setActiveRequest(activeRequestIndex.value - 1);
+      }
+    }
+    // 如果删除的是当前选中 tab 之后的 tab，activeRequestIndex 不需要改变
   }
 };
 
