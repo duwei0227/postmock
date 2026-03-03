@@ -792,41 +792,6 @@ const createItem = async () => {
   }
 };
 
-// Import
-const handleImportCollection = async () => {
-  try {
-    const result = await importExportService.importCollection();
-    if (!result) return;
-    
-    const { collection, requests } = result;
-    await collectionsStore.createCollection(collection.name, collection.description);
-    const savedCollection = collectionsStore.collections.find(c => c.name === collection.name);
-    
-    if (savedCollection) {
-      await collectionsStore.updateCollection(savedCollection.id, {
-        folders: collection.folders,
-        requests: collection.requests
-      });
-      
-      for (const request of requests) {
-        request.collectionId = savedCollection.id;
-        await requestsStore.saveRequest(request);
-      }
-      
-      if (window.$toast) {
-        window.$toast.add({
-          severity: 'success',
-          summary: 'Success',
-          detail: 'Collection imported',
-          life: 3000
-        });
-      }
-    }
-  } catch (error) {
-    console.error('Failed to import:', error);
-  }
-};
-
 // 选中指定的 request 节点
 const selectRequestNode = (requestId, collectionId, folderId) => {
   // 构建节点的 key
@@ -895,20 +860,13 @@ defineExpose({
 
 <template>
   <div class="p-2 bg-surface-0 dark:bg-surface-950">
-    <div class="mb-2 flex gap-2">
+    <div class="mb-2">
       <Button 
         @click="openCreateDialog('collection')"
         label="新建 Collection"
         icon="pi pi-plus"
         size="small"
-        class="flex-1"
-      />
-      <Button 
-        @click="handleImportCollection"
-        icon="pi pi-upload"
-        size="small"
-        severity="secondary"
-        title="导入 Collection"
+        class="w-full"
       />
     </div>
     
