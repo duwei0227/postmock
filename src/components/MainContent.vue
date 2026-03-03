@@ -26,6 +26,7 @@ const selectedTabIndex = ref(-1);
 const environmentManagerRef = ref(null);
 const historyPanelRef = ref(null);
 const collectionsPanelRef = ref(null);
+const requestWrapperRefs = ref({});
 
 // Use store state
 const openRequests = computed(() => appStateStore.openRequests);
@@ -70,10 +71,10 @@ const showToolbarMenu = (event) => {
   toolbarMenu.value.show(event);
 };
 
-const handleToolbarAction = (action) => {
+const handleToolbarAction = async (action) => {
   switch(action) {
     case 'closeAllTabs':
-      appStateStore.updateOpenRequests([]);
+      await closeAllTabs();
       break;
   }
 };
@@ -112,19 +113,18 @@ const handleTabAction = async (action) => {
       
     case 'close':
       if (selectedTabIndex.value >= 0) {
-        closeRequest(selectedTabIndex.value);
+        await closeRequest(selectedTabIndex.value);
       }
       break;
       
     case 'closeOthers':
       if (selectedTabIndex.value >= 0) {
-        const keepRequestId = requests[selectedTabIndex.value];
-        appStateStore.updateOpenRequests([keepRequestId]);
+        await closeOtherTabs(selectedTabIndex.value);
       }
       break;
       
     case 'closeAll':
-      appStateStore.updateOpenRequests([]);
+      await closeAllTabs();
       break;
   }
 };
@@ -180,30 +180,251 @@ const createNewRequest = async () => {
   }
 };
 
-const closeRequest = (index) => {
+const closeRequest = async (index) => {
+  // 检查是否有未保存的变化
+  const requestId = openRequests.value[index];
+  const hasChanges = hasRequestUnsavedChanges(requestId);
+  
+  if (hasChanges) {
+    // 检查请求是否已保存过（是否有 collectionId）
+    const request = await requestsStore.loadRequest(requestId);
+    const hasCollection = request && request.collectionId;
+    
+    // 显示确认对话框
+    return new Promise((resolve) => {
+      if (window.$confirm) {
+        window.$confirm.require({
+          message: 'You have unsaved changes. What would you like to do?',
+          header: 'Unsaved Changes',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'Save',
+          rejectLabel: 'Discard',
+          acceptClass: 'p-button-success',
+          rejectClass: 'p-button-danger',
+          accept: async () => {
+            const wrapperRef = requestWrapperRefs.value[requestId];
+            
+            if (!hasCollection) {
+              // 请求未保存过，打开保存对话框让用户选择位置
+              if (wrapperRef && typeof wrapperRef.openSaveDialog === 'function') {
+                wrapperRef.openSaveDialog();
+              }
+              // 不关闭 tab，让用户完成保存后手动关闭
+              resolve(false);
+            } else {
+              // 请求已保存过，直接保存并关闭
+              if (wrapperRef && typeof wrapperRef.saveCurrentRequest === 'function') {
+                await wrapperRef.saveCurrentRequest();
+              }
+              
+              // 关闭 tab
+              performCloseRequest(index);
+              resolve(true);
+            }
+          },
+          reject: () => {
+            // 丢弃并关闭
+            performCloseRequest(index);
+            resolve(true);
+          },
+          onHide: () => {
+            // 取消，不关闭
+            resolve(false);
+          }
+        });
+      } else {
+        // 如果没有 confirm 服务，直接关闭
+        performCloseRequest(index);
+        resolve(true);
+      }
+    });
+  }
+  
+  // 没有变化，直接关闭
+  performCloseRequest(index);
+};
+
+const performCloseRequest = (index) => {
   const requests = [...openRequests.value];
+  const requestId = requests[index];
+  
+  // 清除未保存状态
+  if (requestId) {
+    delete unsavedChangesMap.value[requestId];
+  }
+  
   requests.splice(index, 1);
   
   // 更新打开的请求列表
   appStateStore.updateOpenRequests(requests);
   
   // 调整 activeRequestIndex
+  let newActiveIndex = -1;
   if (requests.length === 0) {
     // 如果没有打开的 tab 了，重置为 -1（显示默认页面）
-    appStateStore.setActiveRequest(-1);
+    newActiveIndex = -1;
   } else if (index <= activeRequestIndex.value) {
     // 如果关闭的是当前选中的 tab 或之前的 tab
     if (index === activeRequestIndex.value) {
       // 关闭的是当前选中的 tab
       // 如果关闭的是最后一个 tab，选中前一个；否则保持当前索引（会自动选中下一个）
-      const newIndex = index >= requests.length ? requests.length - 1 : index;
-      appStateStore.setActiveRequest(newIndex);
+      newActiveIndex = index >= requests.length ? requests.length - 1 : index;
     } else {
       // 关闭的是当前选中 tab 之前的 tab，索引需要前移
-      appStateStore.setActiveRequest(activeRequestIndex.value - 1);
+      newActiveIndex = activeRequestIndex.value - 1;
+    }
+  } else {
+    // 如果关闭的是当前选中 tab 之后的 tab，activeRequestIndex 不需要改变
+    newActiveIndex = activeRequestIndex.value;
+  }
+  
+  appStateStore.setActiveRequest(newActiveIndex);
+  
+  // 同步更新 CollectionsPanel 的选中状态
+  if (newActiveIndex >= 0 && requests[newActiveIndex]) {
+    syncCollectionsPanelSelection(requests[newActiveIndex]);
+  } else {
+    // 清除 CollectionsPanel 的选中状态（最后一个 Tab 关闭）
+    if (collectionsPanelRef.value && typeof collectionsPanelRef.value.clearSelection === 'function') {
+      collectionsPanelRef.value.clearSelection();
     }
   }
-  // 如果关闭的是当前选中 tab 之后的 tab，activeRequestIndex 不需要改变
+};
+
+// 关闭其他 tabs
+const closeOtherTabs = async (keepIndex) => {
+  const requests = [...openRequests.value];
+  const keepRequestId = requests[keepIndex];
+  
+  // 检查其他 tabs 是否有未保存的变化
+  const unsavedRequests = [];
+  for (let i = 0; i < requests.length; i++) {
+    if (i !== keepIndex && hasRequestUnsavedChanges(requests[i])) {
+      unsavedRequests.push(requests[i]);
+    }
+  }
+  
+  if (unsavedRequests.length > 0) {
+    // 有未保存的变化，显示确认对话框
+    return new Promise((resolve) => {
+      if (window.$confirm) {
+        window.$confirm.require({
+          message: `You have ${unsavedRequests.length} tab(s) with unsaved changes. Do you want to close them?`,
+          header: 'Unsaved Changes',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'Close All',
+          rejectLabel: 'Cancel',
+          acceptClass: 'p-button-danger',
+          accept: () => {
+            // 清除所有未保存状态
+            unsavedRequests.forEach(requestId => {
+              delete unsavedChangesMap.value[requestId];
+            });
+            
+            // 只保留指定的 tab
+            appStateStore.updateOpenRequests([keepRequestId]);
+            appStateStore.setActiveRequest(0);
+            
+            // 同步 CollectionsPanel 选中状态
+            syncCollectionsPanelSelection(keepRequestId);
+            
+            resolve(true);
+          },
+          reject: () => {
+            resolve(false);
+          }
+        });
+      } else {
+        // 没有 confirm 服务，直接关闭
+        appStateStore.updateOpenRequests([keepRequestId]);
+        appStateStore.setActiveRequest(0);
+        syncCollectionsPanelSelection(keepRequestId);
+        resolve(true);
+      }
+    });
+  }
+  
+  // 没有未保存的变化，直接关闭
+  appStateStore.updateOpenRequests([keepRequestId]);
+  appStateStore.setActiveRequest(0);
+  syncCollectionsPanelSelection(keepRequestId);
+};
+
+// 关闭所有 tabs
+const closeAllTabs = async () => {
+  const requests = [...openRequests.value];
+  
+  // 检查是否有未保存的变化
+  const unsavedRequests = requests.filter(requestId => hasRequestUnsavedChanges(requestId));
+  
+  if (unsavedRequests.length > 0) {
+    // 有未保存的变化，显示确认对话框
+    return new Promise((resolve) => {
+      if (window.$confirm) {
+        window.$confirm.require({
+          message: `You have ${unsavedRequests.length} tab(s) with unsaved changes. Do you want to close them?`,
+          header: 'Unsaved Changes',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'Close All',
+          rejectLabel: 'Cancel',
+          acceptClass: 'p-button-danger',
+          accept: () => {
+            // 清除所有未保存状态
+            unsavedChangesMap.value = {};
+            
+            // 关闭所有 tabs
+            appStateStore.updateOpenRequests([]);
+            appStateStore.setActiveRequest(-1);
+            
+            // 清除 CollectionsPanel 选中状态
+            if (collectionsPanelRef.value && typeof collectionsPanelRef.value.clearSelection === 'function') {
+              collectionsPanelRef.value.clearSelection();
+            }
+            
+            resolve(true);
+          },
+          reject: () => {
+            resolve(false);
+          }
+        });
+      } else {
+        // 没有 confirm 服务，直接关闭
+        unsavedChangesMap.value = {};
+        appStateStore.updateOpenRequests([]);
+        appStateStore.setActiveRequest(-1);
+        
+        if (collectionsPanelRef.value && typeof collectionsPanelRef.value.clearSelection === 'function') {
+          collectionsPanelRef.value.clearSelection();
+        }
+        
+        resolve(true);
+      }
+    });
+  }
+  
+  // 没有未保存的变化，直接关闭
+  appStateStore.updateOpenRequests([]);
+  appStateStore.setActiveRequest(-1);
+  
+  if (collectionsPanelRef.value && typeof collectionsPanelRef.value.clearSelection === 'function') {
+    collectionsPanelRef.value.clearSelection();
+  }
+};
+
+// 同步 CollectionsPanel 的选中状态
+const syncCollectionsPanelSelection = async (requestId) => {
+  try {
+    const request = await requestsStore.loadRequest(requestId);
+    if (request && request.collectionId && collectionsPanelRef.value) {
+      collectionsPanelRef.value.selectRequestNode(
+        request.id,
+        request.collectionId,
+        request.folderId
+      );
+    }
+  } catch (error) {
+    console.error('Failed to sync collections panel selection:', error);
+  }
 };
 
 const addToHistory = (log) => {
@@ -434,6 +655,9 @@ const handleSaveRequest = async (saveData) => {
         folder?.id
       );
     }
+    
+    // 清除未保存状态
+    updateUnsavedStatus(request.id, false);
   } catch (error) {
     console.error('Failed to save request:', error);
     if (window.$toast) {
@@ -447,10 +671,28 @@ const handleSaveRequest = async (saveData) => {
   }
 };
 
+// 处理未保存变化状态更新
+const handleUnsavedChanges = (requestId, hasChanges) => {
+  updateUnsavedStatus(requestId, hasChanges);
+};
+
 // 获取请求的显示名称
 const getRequestName = (requestId) => {
   const request = requestsStore.requests.get(requestId);
   return request?.name || 'Untitled Request';
+};
+
+// 存储每个请求的未保存状态
+const unsavedChangesMap = ref({});
+
+// 检查请求是否有未保存的变化
+const hasRequestUnsavedChanges = (requestId) => {
+  return unsavedChangesMap.value[requestId] || false;
+};
+
+// 更新请求的未保存状态
+const updateUnsavedStatus = (requestId, hasChanges) => {
+  unsavedChangesMap.value[requestId] = hasChanges;
 };
 
 // 监听 activeRequestIndex 变化，同步 CollectionsPanel 的选中状态
@@ -533,7 +775,12 @@ defineExpose({
                 :value="index"
                 @contextmenu="showTabContextMenu($event, index)"
               >
-                <span class="text-xs">{{ getRequestName(requestId) }}</span>
+                <span 
+                  class="text-xs"
+                  :class="{ 'text-orange-600 dark:text-orange-400': hasRequestUnsavedChanges(requestId) }"
+                >
+                  {{ getRequestName(requestId) }}
+                </span>
                 <i 
                   class="pi pi-times text-xs ml-2 hover:text-red-600 cursor-pointer"
                   @click.stop="closeRequest(index)"
@@ -592,12 +839,14 @@ defineExpose({
         <HttpRequestWrapper 
           v-else-if="activeRequestIndex >= 0 && openRequests[activeRequestIndex]"
           :key="openRequests[activeRequestIndex]"
+          :ref="el => { if (el) requestWrapperRefs[openRequests[activeRequestIndex]] = el }"
           :requestId="openRequests[activeRequestIndex]"
           :environmentManager="environmentManagerRef"
           :collections="collectionsStore.collections"
           @close="closeRequest(activeRequestIndex)"
           @add-console-log="(log) => { emit('add-console-log', log); addToHistory(log); }"
           @save-request="handleSaveRequest"
+          @unsaved-changes="(hasChanges) => handleUnsavedChanges(openRequests[activeRequestIndex], hasChanges)"
         />
       </div>
     </main>

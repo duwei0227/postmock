@@ -319,25 +319,52 @@ if (props.request._showSaveDialog && props.request._initialCollection) {
 
 // 获取可用变量
 const availableVariables = computed(() => {
-  console.log('Computing availableVariables, environmentManager:', props.environmentManager);
+  console.log('[HttpRequest] Computing availableVariables');
+  console.log('[HttpRequest] props.environmentManager:', props.environmentManager);
+  console.log('[HttpRequest] props.environmentManager type:', typeof props.environmentManager);
+  
   if (props.environmentManager) {
-    // environmentManager 是一个 ref，需要通过 .value 访问
-    const manager = props.environmentManager.value;
-    console.log('Manager value:', manager, 'Type:', typeof manager);
-    if (manager && typeof manager.getAllAvailableVariables === 'function') {
-      const vars = manager.getAllAvailableVariables();
-      console.log('Available variables:', vars);
-      return vars;
+    // environmentManager 可能直接是组件实例，也可能是 ref
+    let manager = props.environmentManager;
+    
+    // 如果是 ref，通过 .value 访问
+    if (manager && manager.value) {
+      console.log('[HttpRequest] environmentManager is a ref, accessing .value');
+      manager = manager.value;
     }
+    
+    console.log('[HttpRequest] Manager:', manager);
+    console.log('[HttpRequest] Manager type:', typeof manager);
+    console.log('[HttpRequest] Manager keys:', manager ? Object.keys(manager) : 'null');
+    
+    if (manager && typeof manager.getAllAvailableVariables === 'function') {
+      // 访问 currentEnvironment 以建立响应式依赖
+      const currentEnv = manager.currentEnvironment;
+      console.log('[HttpRequest] Current environment:', currentEnv);
+      const vars = manager.getAllAvailableVariables();
+      console.log('[HttpRequest] Available variables:', vars);
+      return vars;
+    } else {
+      console.log('[HttpRequest] getAllAvailableVariables is not a function');
+    }
+  } else {
+    console.log('[HttpRequest] No environmentManager provided');
   }
-  console.log('No variables available');
+  
+  console.log('[HttpRequest] Returning empty variables');
   return {};
 });
 
 // 监听环境变化
-watch(() => props.environmentManager, (newVal) => {
-  console.log('EnvironmentManager changed:', newVal);
-}, { deep: true, immediate: true });
+watch(() => {
+  let manager = props.environmentManager;
+  if (manager && manager.value) {
+    manager = manager.value;
+  }
+  return manager?.currentEnvironment;
+}, (newVal) => {
+  console.log('[HttpRequest] Environment changed to:', newVal);
+}, { immediate: true });
 
 // 替换变量的辅助函数
 const replaceVariables = (str) => {
@@ -1546,23 +1573,24 @@ const selectedPath = computed(() => {
   
   return parts.join(' / ');
 });
+
+// 暴露方法供父组件调用
+defineExpose({
+  openSaveDialog
+});
 </script>
 
 <template>
   <div class="http-request flex flex-col h-full">
     <!-- Title Bar -->
     <div class="flex items-center px-4 py-3 border-b border-surface-200 dark:border-surface-700">
-      <div class="flex items-center gap-2">
-        <span v-if="!localRequest.saved" class="text-sm font-medium text-surface-700 dark:text-surface-300">
-          {{ localRequest.name }}
-        </span>
+      <div class="flex items-center gap-2 flex-1">
         <InputText 
-          v-else
           v-model="localRequest.name"
-          class="text-sm font-medium border-0 p-0 focus:ring-0"
+          class="text-sm font-medium border-0 p-0 focus:ring-0 flex-1"
           placeholder="Request Name"
         />
-        <span v-if="!localRequest.saved" class="text-xs text-surface-400">(未保存)</span>
+        <span v-if="!localRequest.collectionId" class="text-xs text-surface-400">(未保存)</span>
       </div>
     </div>
 
@@ -1749,11 +1777,11 @@ const selectedPath = computed(() => {
                     <Checkbox v-model="header.enabled" :binary="true" />
                   </div>
                   <div class="flex-1 relative">
-                    <InputText 
+                    <VariableInput 
                       v-model="header.key"
                       placeholder="Key"
-                      class="w-full"
                       size="small"
+                      :availableVariables="availableVariables"
                       @input="(e) => { onHeaderChange(); filterHeaderKeys(e, index); }"
                       @focus="(e) => filterHeaderKeys(e, index)"
                       @blur="hideHeaderSuggestions"
@@ -1774,11 +1802,11 @@ const selectedPath = computed(() => {
                     </div>
                   </div>
                   <div class="flex-1 relative">
-                    <InputText 
+                    <VariableInput 
                       v-model="header.value"
                       placeholder="Value"
-                      class="w-full"
                       size="small"
+                      :availableVariables="availableVariables"
                       @input="(e) => { onHeaderChange(); filterHeaderValues(e, index); }"
                       @focus="(e) => filterHeaderValues(e, index)"
                       @blur="hideHeaderSuggestions"
@@ -1860,11 +1888,11 @@ const selectedPath = computed(() => {
                     </div>
                     <div class="col-span-4">
                       <div class="flex gap-1">
-                        <InputText 
+                        <VariableInput 
                           v-model="row.key"
                           placeholder="Key"
-                          class="flex-1"
                           size="small"
+                          :availableVariables="availableVariables"
                           @input="onFormDataChange"
                         />
                         <Dropdown 
@@ -1878,12 +1906,12 @@ const selectedPath = computed(() => {
                       </div>
                     </div>
                     <div class="col-span-6">
-                      <InputText 
+                      <VariableInput 
                         v-if="row.type === 'text'"
                         v-model="row.value"
                         placeholder="Value"
-                        class="w-full"
                         size="small"
+                        :availableVariables="availableVariables"
                         @input="onFormDataChange"
                       />
                       <div v-else class="flex items-center gap-2">
@@ -1931,20 +1959,20 @@ const selectedPath = computed(() => {
                       <Checkbox v-model="row.enabled" :binary="true" />
                     </div>
                     <div class="col-span-5">
-                      <InputText 
+                      <VariableInput 
                         v-model="row.key"
                         placeholder="Key"
-                        class="w-full"
                         size="small"
+                        :availableVariables="availableVariables"
                         @input="onUrlencodedChange"
                       />
                     </div>
                     <div class="col-span-5">
-                      <InputText 
+                      <VariableInput 
                         v-model="row.value"
                         placeholder="Value"
-                        class="w-full"
                         size="small"
+                        :availableVariables="availableVariables"
                         @input="onUrlencodedChange"
                       />
                     </div>

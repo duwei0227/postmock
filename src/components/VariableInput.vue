@@ -31,7 +31,18 @@ const variableSuggestions = computed(() => {
   console.log('VariableInput - currentVariablePrefix:', currentVariablePrefix.value);
   console.log('VariableInput - availableVariables:', props.availableVariables);
   
-  if (!currentVariablePrefix.value) return [];
+  if (!currentVariablePrefix.value) {
+    // 即使没有前缀，如果用户输入了 {{，也显示所有变量
+    if (showSuggestions.value) {
+      const allSuggestions = Object.keys(props.availableVariables).map(key => ({
+        key,
+        value: props.availableVariables[key]
+      }));
+      console.log('VariableInput - all suggestions:', allSuggestions);
+      return allSuggestions;
+    }
+    return [];
+  }
   
   const prefix = currentVariablePrefix.value.toLowerCase();
   const suggestions = Object.keys(props.availableVariables)
@@ -41,9 +52,14 @@ const variableSuggestions = computed(() => {
       value: props.availableVariables[key]
     }));
   
-  console.log('VariableInput - suggestions:', suggestions);
+  console.log('VariableInput - filtered suggestions:', suggestions);
   return suggestions;
 });
+
+// 监听 availableVariables 变化
+watch(() => props.availableVariables, (newVars) => {
+  console.log('VariableInput - availableVariables changed:', newVars);
+}, { deep: true, immediate: true });
 
 const handleInput = (event) => {
   const value = event.target.value;
@@ -51,6 +67,17 @@ const handleInput = (event) => {
   emit('input', event);
   
   checkForVariableTrigger(value, event.target.selectionStart);
+};
+
+const handleFocus = (event) => {
+  // 将光标移动到末尾
+  const input = event.target;
+  const length = input.value.length;
+  
+  // 使用 setTimeout 确保在浏览器默认行为之后执行
+  setTimeout(() => {
+    input.setSelectionRange(length, length);
+  }, 0);
 };
 
 const checkForVariableTrigger = (value, position) => {
@@ -108,6 +135,7 @@ const hideSuggestions = () => {
       :size="size"
       class="w-full"
       @input="handleInput"
+      @focus="handleFocus"
       @blur="hideSuggestions"
     />
     

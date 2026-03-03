@@ -881,10 +881,16 @@ const findFolderPath = (folders, targetId, currentPath = []) => {
   return null;
 };
 
+// 清除选中状态
+const clearSelection = () => {
+  selectedKeys.value = {};
+};
+
 // Expose methods
 defineExpose({
   collections,
-  selectRequestNode
+  selectRequestNode,
+  clearSelection
 });
 </script>
 

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 import { storageService } from '@/services/storage';
 import { useCollectionsStore } from '@/stores/collections';
 import { useEnvironmentsStore } from '@/stores/environments';
@@ -13,6 +14,7 @@ import Footer from "@/components/Footer.vue";
 
 const consoleLogs = ref([]);
 const toast = useToast();
+const confirm = useConfirm();
 const mainContentRef = ref(null);
 
 // Initialize stores
@@ -21,9 +23,10 @@ const environmentsStore = useEnvironmentsStore();
 const historyStore = useHistoryStore();
 const appStateStore = useAppStateStore();
 
-// 将 toast 挂载到全局，供子组件使用
+// 将 toast 和 confirm 挂载到全局，供子组件使用
 onMounted(async () => {
   window.$toast = toast;
+  window.$confirm = confirm;
   
   try {
     // Initialize storage service
