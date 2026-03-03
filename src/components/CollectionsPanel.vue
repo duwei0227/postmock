@@ -463,18 +463,27 @@ const duplicateFolder = async (collection, folder) => {
     
     const newFolder = duplicateStructure(folder);
     
-    // addFolder 返回新创建的 folder 对象，直接使用它而不是通过名称查找
-    const createdFolder = await collectionsStore.addFolder(collection.id, newFolder.name, null);
+    // 找到 folder 的父 folder（如果有）
+    const { folder: parentFolder } = getCollectionAndFolder(contextMenuNode.value);
+    
+    // addFolder 返回新创建的 folder 对象
+    const createdFolder = await collectionsStore.addFolder(
+      collection.id, 
+      newFolder.name, 
+      parentFolder?.id || null
+    );
     
     if (createdFolder) {
       // 更新 folderIdMap，将源 folder 的 ID 映射到实际创建的 folder ID
       folderIdMap.set(folder.id, createdFolder.id);
       
+      // 更新新创建的 folder，添加子 folders 和 requests
       await collectionsStore.updateFolder(collection.id, createdFolder.id, {
         folders: newFolder.folders,
         requests: newFolder.requests
       });
       
+      // 复制所有 requests 的完整数据
       const requestIds = collectAllRequestIds(folder);
       const requests = await requestsStore.loadMultipleRequests(requestIds);
       
@@ -503,6 +512,9 @@ const duplicateFolder = async (collection, folder) => {
           await requestsStore.saveRequest(newRequest);
         }
       }
+      
+      // 重新加载 collections 以确保数据同步
+      await collectionsStore.loadCollections();
       
       if (window.$toast) {
         window.$toast.add({

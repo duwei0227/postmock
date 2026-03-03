@@ -278,6 +278,17 @@ const isResizing = ref(false);
 const isResponseCollapsed = ref(true); // 默认收起
 const testResults = ref(null); // 存储测试结果
 
+// 监听 props.request.name 的变化，同步更新 localRequest.name
+watch(
+  () => props.request.name,
+  (newName) => {
+    if (newName && newName !== localRequest.value.name) {
+      console.log('[HttpRequest] Request name changed from parent, updating:', newName);
+      localRequest.value.name = newName;
+    }
+  }
+);
+
 // 检查是否需要自动显示保存对话框
 if (props.request._showSaveDialog && props.request._initialCollection) {
   // 延迟显示对话框，确保组件已完全挂载
