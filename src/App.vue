@@ -89,21 +89,35 @@ const handleImportFile = async () => {
     
     const { collection, requests } = result;
     
-    // Create collection
+    // Check for duplicate collection name and rename if necessary
+    let collectionName = collection.name;
+    if (collectionsStore.collections.some(c => c.name === collectionName)) {
+      // First try with "Imported"
+      collectionName = `${collection.name} (Imported)`;
+      let counter = 2;
+      // If still duplicate, add counter
+      while (collectionsStore.collections.some(c => c.name === collectionName)) {
+        collectionName = `${collection.name} (Imported ${counter})`;
+        counter++;
+      }
+    }
+    
+    // Create collection with potentially renamed name
     const newCollection = await collectionsStore.createCollection(
-      collection.name,
+      collectionName,
       collection.description
     );
     
     if (newCollection) {
-      // Update collection structure
+      // Update collection structure with remapped IDs
       await collectionsStore.updateCollection(newCollection.id, {
         folders: collection.folders,
         requests: collection.requests
       });
       
-      // Save all requests
+      // Save all requests with remapped IDs
       for (const request of requests) {
+        // Ensure collectionId is set to the new collection
         request.collectionId = newCollection.id;
         await requestsStore.saveRequest(request);
       }
@@ -111,7 +125,7 @@ const handleImportFile = async () => {
       toast.add({
         severity: 'success',
         summary: 'Success',
-        detail: `Collection "${collection.name}" imported successfully`,
+        detail: `Collection "${collectionName}" imported successfully`,
         life: 3000
       });
     }

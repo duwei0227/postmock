@@ -105,64 +105,71 @@ export class ImportExportService {
     requests: Request[]
   ): { collection: Collection; requests: Request[] } {
     const idMap = new Map<string, string>();
+    const folderIdMap = new Map<string, string>();
+    const requestIdMap = new Map<string, string>();
 
     // Generate new collection ID
     const newCollectionId = generateId();
     idMap.set(collection.id, newCollectionId);
 
+    // First pass: generate all folder IDs
+    const generateFolderIds = (folders: any[]) => {
+      for (const folder of folders) {
+        const newFolderId = generateId();
+        folderIdMap.set(folder.id, newFolderId);
+        if (folder.folders && folder.folders.length > 0) {
+          generateFolderIds(folder.folders);
+        }
+      }
+    };
+    
+    if (collection.folders && collection.folders.length > 0) {
+      generateFolderIds(collection.folders);
+    }
+
+    // Second pass: generate all request IDs
+    for (const request of requests) {
+      const newRequestId = generateId();
+      requestIdMap.set(request.id, newRequestId);
+    }
+
+    // Remap folders with new IDs
+    const remapFolders = (folders: any[]): any[] => {
+      return folders.map(folder => ({
+        ...folder,
+        id: folderIdMap.get(folder.id) || folder.id,
+        folders: folder.folders ? remapFolders(folder.folders) : [],
+        requests: folder.requests ? folder.requests.map((req: any) => ({
+          ...req,
+          id: requestIdMap.get(req.id) || req.id
+        })) : []
+      }));
+    };
+
     // Remap collection
     const newCollection: Collection = {
       ...collection,
       id: newCollectionId,
-      folders: this.remapFolderIds(collection.folders, idMap),
-      requests: this.remapRequestReferences(collection.requests, idMap),
+      folders: collection.folders ? remapFolders(collection.folders) : [],
+      requests: collection.requests ? collection.requests.map(req => ({
+        ...req,
+        id: requestIdMap.get(req.id) || req.id
+      })) : [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
     // Remap requests
-    const newRequests: Request[] = requests.map(request => {
-      const newRequestId = generateId();
-      idMap.set(request.id, newRequestId);
-
-      return {
-        ...request,
-        id: newRequestId,
-        collectionId: newCollectionId,
-        folderId: request.folderId ? idMap.get(request.folderId) : undefined,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-    });
+    const newRequests: Request[] = requests.map(request => ({
+      ...request,
+      id: requestIdMap.get(request.id) || request.id,
+      collectionId: newCollectionId,
+      folderId: request.folderId ? folderIdMap.get(request.folderId) || null : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
 
     return { collection: newCollection, requests: newRequests };
-  }
-
-  private remapFolderIds(
-    folders: any[],
-    idMap: Map<string, string>
-  ): any[] {
-    return folders.map(folder => {
-      const newFolderId = generateId();
-      idMap.set(folder.id, newFolderId);
-
-      return {
-        ...folder,
-        id: newFolderId,
-        folders: this.remapFolderIds(folder.folders || [], idMap),
-        requests: this.remapRequestReferences(folder.requests || [], idMap)
-      };
-    });
-  }
-
-  private remapRequestReferences(
-    requests: any[],
-    idMap: Map<string, string>
-  ): any[] {
-    return requests.map(request => ({
-      ...request,
-      id: idMap.get(request.id) || request.id
-    }));
   }
 }
 
