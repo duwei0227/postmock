@@ -834,51 +834,6 @@ defineExpose({
   background: transparent;
 }
 
-:deep(.p-tree .p-tree-node) {
-  padding: 0.125rem 0;
-}
-
-:deep(.p-tree .p-tree-node-content) {
-  padding: 0.5rem;
-  border-radius: 6px;
-  transition: background-color 0.2s;
-}
-
-:deep(.p-tree .p-tree-node-content:hover) {
-  background-color: var(--p-surface-100);
-}
-
-:deep(.p-dark .p-tree .p-tree-node-content:hover) {
-  background-color: var(--p-surface-800);
-}
-
-:deep(.p-tree .p-tree-node-content.p-highlight) {
-  background-color: var(--p-highlight-background);
-  color: var(--p-highlight-color);
-}
-
-:deep(.p-tree .p-tree-node-content.p-highlight *) {
-  color: var(--p-highlight-color);
-}
-
-:deep(.p-tree .p-tree-node-children) {
-  padding: 0 0 0 1rem;
-}
-
-:deep(.p-tree > .p-tree-node > .p-tree-node-content) {
-  margin-left: -0.5rem;
-}
-
-:deep(.p-tree .p-tree-node-toggle-button) {
-  width: 2rem;
-  height: 2rem;
-  margin-right: 0.5rem;
-}
-
-:deep(.p-tree .p-tree-node-icon) {
-  margin-right: 0.5rem;
-}
-
 .method-badge {
   font-weight: 600;
   font-size: 10px;
