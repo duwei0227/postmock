@@ -2368,7 +2368,7 @@ defineExpose({
       </div>
 
       <!-- Response Section -->
-      <div class="border-t border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 flex flex-col" :style="{ height: isResponseCollapsed ? '40px' : `${responseHeight}px` }">
+      <div class="border-t border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-950 flex flex-col" :style="{ height: isResponseCollapsed ? '40px' : `${responseHeight}px` }">
         <!-- Resize Handle (only when expanded) -->
         <div 
           v-if="!isResponseCollapsed"
