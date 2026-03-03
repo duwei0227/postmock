@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useCollectionsStore } from '@/stores/collections';
 import { useRequestsStore } from '@/stores/requests';
 import { importExportService } from '@/services/import-export';
+import { generateId } from '@/utils/id-generator';
 
 const confirm = useConfirm();
 const collectionsStore = useCollectionsStore();
@@ -18,296 +19,596 @@ const props = defineProps({
 
 const emit = defineEmits(['add-request', 'open-request', 'request-added']);
 
-// Use store collections
+// Store
 const collections = computed(() => collectionsStore.collections);
 
+// Tree state
 const expandedKeys = ref({});
 const selectedKeys = ref({});
+
+// Dialog state
 const showCreateDialog = ref(false);
-const dialogMode = ref('collection'); // 'collection' or 'folder'
+const dialogMode = ref('collection');
 const newItemName = ref('');
 const newItemDescription = ref('');
-const selectedCollection = ref(null);
-const selectedFolder = ref(null);
-const selectedRequest = ref(null);
+
+// Rename dialog
 const showRenameDialog = ref(false);
 const renameItemName = ref('');
 const renamingItem = ref(null);
+
+// Context menu
 const contextMenu = ref(null);
+const contextMenuNode = ref(null);
 
-// Context Menu 菜单项
-const menuItems = computed(() => {
-  const baseItems = [];
-  
-  if (selectedRequest.value) {
-    baseItems.push(
-      {
-        label: 'Open Request',
-        icon: 'pi pi-external-link',
-        command: () => handleMenuAction('openRequest')
-      },
-      { separator: true },
-      {
-        label: 'Duplicate',
-        icon: 'pi pi-copy',
-        command: () => handleMenuAction('duplicate')
-      },
-      {
-        label: 'Rename',
-        icon: 'pi pi-pencil',
-        command: () => handleMenuAction('rename')
-      },
-      { separator: true },
-      {
-        label: 'Delete',
-        icon: 'pi pi-trash',
-        class: 'text-red-600 dark:text-red-400',
-        command: () => handleMenuAction('delete')
-      }
-    );
-  } else {
-    baseItems.push(
-      {
-        label: 'Add Request',
-        icon: 'pi pi-plus',
-        command: () => handleMenuAction('addRequest')
-      },
-      {
-        label: 'Add Folder',
-        icon: 'pi pi-folder-plus',
-        command: () => handleMenuAction('addFolder')
-      },
-      { separator: true },
-      {
-        label: 'Duplicate',
-        icon: 'pi pi-copy',
-        command: () => handleMenuAction('duplicate')
-      },
-      {
-        label: 'Rename',
-        icon: 'pi pi-pencil',
-        command: () => handleMenuAction('rename')
-      }
-    );
-
-    if (selectedCollection.value && !selectedFolder.value) {
-      baseItems.push(
-        {
-          label: 'Share Collection',
-          icon: 'pi pi-share-alt',
-          command: () => handleMenuAction('share')
-        }
-      );
-    }
-
-    baseItems.push(
-      { separator: true },
-      {
-        label: 'Export',
-        icon: 'pi pi-download',
-        command: () => handleMenuAction('export')
-      },
-      {
-        label: 'Delete',
-        icon: 'pi pi-trash',
-        class: 'text-red-600 dark:text-red-400',
-        command: () => handleMenuAction('delete')
-      }
-    );
-  }
-
-  return baseItems;
-});
-
-// 将 collections 数据转换为 Tree 组件需要的格式
+// 将 collections 转换为 Tree 节点格式
 const treeNodes = computed(() => {
   const convertToTreeNode = (item, type = 'collection', parentKey = '') => {
-    // 使用 '/' 作为分隔符，因为 ID 中可能包含 '-'
     const key = parentKey ? `${parentKey}/${item.id}` : `${type}/${item.id}`;
     
     const node = {
       key,
       label: item.name,
       data: { ...item, type },
-      icon: getNodeIcon(type),
+      icon: type === 'collection' ? 'pi pi-folder' : 'pi pi-folder-open',
       children: []
     };
 
-    // 添加requests作为子节点
+    // 添加 requests
     if (item.requests && item.requests.length > 0) {
-      const requestNodes = item.requests.map(request => ({
-        key: `${key}/request/${request.id}`,
-        label: request.name,
-        data: { ...request, type: 'request' },
-        icon: '',
+      node.children.push(...item.requests.map(req => ({
+        key: `${key}/request/${req.id}`,
+        label: req.name,
+        data: { ...req, type: 'request' },
+        icon: 'pi pi-file',
         children: []
-      }));
-      node.children.push(...requestNodes);
+      })));
     }
 
-    // 添加folders作为子节点
+    // 添加 folders
     if (item.folders && item.folders.length > 0) {
-      const folderNodes = item.folders.map(folder => 
+      node.children.push(...item.folders.map(folder => 
         convertToTreeNode(folder, 'folder', key)
-      );
-      node.children.push(...folderNodes);
+      ));
     }
 
     return node;
   };
 
   if (!props.searchQuery) {
-    return collections.value.map(collection => convertToTreeNode(collection));
+    return collections.value.map(c => convertToTreeNode(c));
   }
 
-  // 搜索过滤
   const query = props.searchQuery.toLowerCase();
   return collections.value
-    .filter(collection => collection.name.toLowerCase().includes(query))
-    .map(collection => convertToTreeNode(collection));
+    .filter(c => c.name.toLowerCase().includes(query))
+    .map(c => convertToTreeNode(c));
 });
 
-const getNodeIcon = (type) => {
-  switch(type) {
-    case 'collection':
-      return 'pi pi-folder';
-    case 'folder':
-      return 'pi pi-folder-open';
-    default:
-      return 'pi pi-folder';
-  }
-};
-
-const getMethodColor = (method) => {
-  const methodColors = {
-    'GET': 'text-green-600 dark:text-green-400',
-    'POST': 'text-blue-600 dark:text-blue-400',
-    'PUT': 'text-yellow-600 dark:text-yellow-400',
-    'DELETE': 'text-red-600 dark:text-red-400',
-    'PATCH': 'text-purple-600 dark:text-purple-400'
-  };
-  return methodColors[method] || 'text-surface-600';
-};
-
-const getTotalRequestCount = (item) => {
-  if (item.type === 'request') return 0;
+// Context menu items
+const menuItems = computed(() => {
+  if (!contextMenuNode.value) return [];
   
-  let count = 0;
+  const node = contextMenuNode.value;
+  const type = node.data.type;
+  const items = [];
   
-  if (item.requests && Array.isArray(item.requests)) {
-    count += item.requests.length;
-  }
-  
-  if (item.folders && Array.isArray(item.folders)) {
-    for (const folder of item.folders) {
-      count += getTotalRequestCount(folder);
+  if (type === 'request') {
+    items.push(
+      { label: 'Open', icon: 'pi pi-external-link', command: () => handleOpen() },
+      { separator: true },
+      { label: 'Duplicate', icon: 'pi pi-copy', command: () => handleDuplicate() },
+      { label: 'Rename', icon: 'pi pi-pencil', command: () => handleRename() },
+      { separator: true },
+      { label: 'Delete', icon: 'pi pi-trash', class: 'text-red-600', command: () => handleDelete() }
+    );
+  } else {
+    items.push(
+      { label: 'Add Request', icon: 'pi pi-plus', command: () => handleAddRequest() },
+      { label: 'Add Folder', icon: 'pi pi-folder-plus', command: () => handleAddFolder() },
+      { separator: true },
+      { label: 'Duplicate', icon: 'pi pi-copy', command: () => handleDuplicate() },
+      { label: 'Rename', icon: 'pi pi-pencil', command: () => handleRename() }
+    );
+    
+    if (type === 'collection') {
+      items.push(
+        { label: 'Share', icon: 'pi pi-share-alt', command: () => handleShare() }
+      );
     }
+    
+    items.push(
+      { separator: true },
+      { label: 'Export', icon: 'pi pi-download', command: () => handleExport() },
+      { label: 'Delete', icon: 'pi pi-trash', class: 'text-red-600', command: () => handleDelete() }
+    );
   }
   
-  return count;
-};
-
-watch(() => props.searchQuery, (newQuery) => {
-  if (newQuery) {
-    const newExpandedKeys = {};
-    const expandMatchingNodes = (nodes) => {
-      nodes.forEach(node => {
-        if (node.label.toLowerCase().includes(newQuery.toLowerCase())) {
-          newExpandedKeys[node.key] = true;
-        }
-        if (node.children && node.children.length > 0) {
-          expandMatchingNodes(node.children);
-        }
-      });
-    };
-    expandMatchingNodes(treeNodes.value);
-    expandedKeys.value = newExpandedKeys;
-  }
+  return items;
 });
 
-const onNodeContextMenu = (event) => {
-  // Prevent default context menu
-  if (event.originalEvent) {
-    event.originalEvent.preventDefault();
-    event.originalEvent.stopPropagation();
-  }
+// Event handlers
+const onNodeSelect = (node) => {
+  // 双击检测
+  const now = Date.now();
+  const lastClick = node.lastClickTime || 0;
+  node.lastClickTime = now;
   
-  const node = event.node;
-  const nodeData = node.data;
-  
-  selectedCollection.value = null;
-  selectedFolder.value = null;
-  selectedRequest.value = null;
-  
-  if (nodeData.type === 'collection') {
-    selectedCollection.value = nodeData;
-  } else if (nodeData.type === 'folder') {
-    const keyParts = node.key.split('/');
-    const collectionId = keyParts[1];
-    const parentCollection = collections.value.find(c => c.id === collectionId);
-    
-    selectedCollection.value = parentCollection;
-    selectedFolder.value = nodeData;
-  } else if (nodeData.type === 'request') {
-    const keyParts = node.key.split('/');
-    const collectionId = keyParts[1];
-    selectedCollection.value = collections.value.find(c => c.id === collectionId);
-    
-    selectedRequest.value = { ...nodeData };
-    
-    const requestIndex = keyParts.findIndex(part => part === 'request');
-    if (requestIndex > 2) {
-      const folderIds = keyParts.slice(2, requestIndex);
-      const parentFolder = findFolderByPath(selectedCollection.value?.folders || [], folderIds);
-      if (parentFolder) {
-        selectedRequest.value.parentFolder = parentFolder;
-      }
-    }
-  }
-  
-  if (contextMenu.value && event.originalEvent) {
-    contextMenu.value.show(event.originalEvent);
+  if (now - lastClick < 300 && node.data.type === 'request') {
+    handleOpenRequest(node);
   }
 };
 
-const findFolderByPath = (folders, folderIds) => {
-  if (!folderIds || folderIds.length === 0) return null;
+const onTreeContextMenu = (event) => {
+  event.preventDefault();
   
-  const currentFolderId = folderIds[0];
-  const folder = folders.find(f => f.id === currentFolderId);
-  
-  if (!folder) return null;
-  
-  // 如果这是最后一个 ID，返回这个 folder
-  if (folderIds.length === 1) {
-    return folder;
+  // 查找被点击的节点
+  let target = event.target;
+  while (target && !target.classList.contains('p-tree-node-content')) {
+    target = target.parentElement;
   }
   
-  // 否则继续在子文件夹中查找
-  return findFolderByPath(folder.folders || [], folderIds.slice(1));
-};
-
-const findFolderById = (collection, folderId) => {
-  const searchInFolders = (folders) => {
-    for (const folder of folders) {
-      if (folder.id === folderId) {
-        return folder;
-      }
-      if (folder.folders && folder.folders.length > 0) {
-        const found = searchInFolders(folder.folders);
+  if (!target) return;
+  
+  // 从 DOM 中获取节点的 key
+  const treeNode = target.closest('.p-tree-node');
+  if (!treeNode) return;
+  
+  const nodeKey = treeNode.getAttribute('data-pc-section');
+  
+  // 从 treeNodes 中查找对应的节点
+  const findNode = (nodes, key) => {
+    for (const node of nodes) {
+      if (node.key === key) return node;
+      if (node.children) {
+        const found = findNode(node.children, key);
         if (found) return found;
       }
     }
     return null;
   };
   
-  return collection ? searchInFolders(collection.folders || []) : null;
+  // 尝试从选中的节点获取
+  const selectedKey = Object.keys(selectedKeys.value)[0];
+  if (selectedKey) {
+    const node = findNode(treeNodes.value, selectedKey);
+    if (node) {
+      contextMenuNode.value = node;
+      contextMenu.value.show(event);
+    }
+  }
 };
 
-const openCreateDialog = (mode = 'collection', collection = null, folder = null) => {
+// Helper functions
+const getCollectionAndFolder = (node) => {
+  const keyParts = node.key.split('/');
+  const collectionId = keyParts[1];
+  const collection = collections.value.find(c => c.id === collectionId);
+  
+  if (!collection) return { collection: null, folder: null };
+  
+  if (node.data.type === 'folder') {
+    return { collection, folder: node.data };
+  }
+  
+  if (node.data.type === 'request') {
+    const requestIndex = keyParts.findIndex(p => p === 'request');
+    if (requestIndex > 2) {
+      const folderIds = keyParts.slice(2, requestIndex);
+      const folder = findFolderByPath(collection.folders || [], folderIds);
+      return { collection, folder };
+    }
+  }
+  
+  return { collection, folder: null };
+};
+
+const findFolderByPath = (folders, folderIds) => {
+  if (!folderIds || folderIds.length === 0) return null;
+  const folder = folders.find(f => f.id === folderIds[0]);
+  if (!folder) return null;
+  if (folderIds.length === 1) return folder;
+  return findFolderByPath(folder.folders || [], folderIds.slice(1));
+};
+
+// Action handlers
+const handleOpen = () => {
+  if (!contextMenuNode.value) return;
+  handleOpenRequest(contextMenuNode.value);
+};
+
+const handleOpenRequest = (node) => {
+  const { collection, folder } = getCollectionAndFolder(node);
+  if (collection) {
+    emit('open-request', {
+      request: node.data,
+      collection,
+      folder
+    });
+  }
+};
+
+const handleAddRequest = () => {
+  if (!contextMenuNode.value) return;
+  const { collection, folder } = getCollectionAndFolder(contextMenuNode.value);
+  emit('add-request', {
+    collection,
+    folder,
+    name: `New Request in ${folder?.name || collection?.name}`
+  });
+};
+
+const handleAddFolder = () => {
+  if (!contextMenuNode.value) return;
+  const { collection, folder } = getCollectionAndFolder(contextMenuNode.value);
+  dialogMode.value = 'folder';
+  showCreateDialog.value = true;
+  newItemName.value = '';
+  newItemDescription.value = '';
+};
+
+const handleDuplicate = async () => {
+  if (!contextMenuNode.value) return;
+  const node = contextMenuNode.value;
+  const { collection, folder } = getCollectionAndFolder(node);
+  
+  if (node.data.type === 'request') {
+    await duplicateRequest(collection, node.data, folder);
+  } else if (node.data.type === 'folder') {
+    await duplicateFolder(collection, node.data);
+  } else if (node.data.type === 'collection') {
+    await duplicateCollection(node.data);
+  }
+};
+
+const handleRename = () => {
+  if (!contextMenuNode.value) return;
+  renamingItem.value = contextMenuNode.value.data;
+  renameItemName.value = contextMenuNode.value.data.name;
+  showRenameDialog.value = true;
+};
+
+const handleDelete = () => {
+  if (!contextMenuNode.value) return;
+  const node = contextMenuNode.value;
+  const { collection } = getCollectionAndFolder(node);
+  
+  confirm.require({
+    message: `确定要删除 "${node.data.name}" 吗？`,
+    header: '确认删除',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '删除',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      if (node.data.type === 'request') {
+        await collectionsStore.removeRequestReference(collection.id, node.data.id);
+        await requestsStore.deleteRequest(node.data.id);
+      } else if (node.data.type === 'folder') {
+        await collectionsStore.deleteFolder(collection.id, node.data.id);
+      } else if (node.data.type === 'collection') {
+        await collectionsStore.deleteCollection(node.data.id);
+      }
+    }
+  });
+};
+
+const handleShare = async () => {
+  if (!contextMenuNode.value) return;
+  const collection = contextMenuNode.value.data;
+  
+  try {
+    const requestIds = collectAllRequestIds(collection);
+    const requests = await requestsStore.loadMultipleRequests(requestIds);
+    const shareData = {
+      collection: {
+        name: collection.name,
+        description: collection.description,
+        folders: collection.folders || [],
+        requests: collection.requests || []
+      },
+      requests
+    };
+    
+    await navigator.clipboard.writeText(JSON.stringify(shareData, null, 2));
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: 'Collection copied to clipboard',
+        life: 3000
+      });
+    }
+  } catch (error) {
+    console.error('Failed to share:', error);
+  }
+};
+
+const handleExport = async () => {
+  if (!contextMenuNode.value) return;
+  const collection = contextMenuNode.value.data;
+  
+  try {
+    const requestIds = collectAllRequestIds(collection);
+    const requests = await requestsStore.loadMultipleRequests(requestIds);
+    await importExportService.exportCollection(collection, requests);
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: 'Collection exported',
+        life: 3000
+      });
+    }
+  } catch (error) {
+    console.error('Failed to export:', error);
+  }
+};
+
+// Duplicate functions
+const duplicateRequest = async (collection, request, folder) => {
+  try {
+    const fullRequest = await requestsStore.loadRequest(request.id);
+    if (!fullRequest) return;
+    
+    const newRequest = {
+      ...fullRequest,
+      id: generateId(),
+      name: `${fullRequest.name} (Copy)`,
+      collectionId: collection.id,
+      folderId: folder?.id || null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    await requestsStore.saveRequest(newRequest);
+    await collectionsStore.addRequestReference(
+      collection.id,
+      newRequest.id,
+      newRequest.name,
+      newRequest.method,
+      newRequest.url,
+      folder?.id
+    );
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: 'Request duplicated',
+        life: 3000
+      });
+    }
+  } catch (error) {
+    console.error('Failed to duplicate request:', error);
+  }
+};
+
+const duplicateFolder = async (collection, folder) => {
+  try {
+    const folderIdMap = new Map();
+    const requestIdMap = new Map();
+    
+    const duplicateStructure = (sourceFolder) => {
+      const newFolderId = generateId();
+      folderIdMap.set(sourceFolder.id, newFolderId);
+      
+      return {
+        id: newFolderId,
+        name: `${sourceFolder.name} (Copy)`,
+        folders: sourceFolder.folders ? sourceFolder.folders.map(f => duplicateStructure(f)) : [],
+        requests: sourceFolder.requests ? sourceFolder.requests.map(req => {
+          const newRequestId = generateId();
+          requestIdMap.set(req.id, newRequestId);
+          return { id: newRequestId, name: req.name, method: req.method, url: req.url };
+        }) : []
+      };
+    };
+    
+    const newFolder = duplicateStructure(folder);
+    await collectionsStore.addFolder(collection.id, newFolder.name, null);
+    
+    const updatedCollection = collections.value.find(c => c.id === collection.id);
+    const createdFolder = updatedCollection.folders.find(f => f.name === newFolder.name);
+    
+    if (createdFolder) {
+      await collectionsStore.updateFolder(collection.id, createdFolder.id, {
+        folders: newFolder.folders,
+        requests: newFolder.requests
+      });
+      
+      const requestIds = collectAllRequestIds(folder);
+      const requests = await requestsStore.loadMultipleRequests(requestIds);
+      
+      for (const request of requests) {
+        const newRequestId = requestIdMap.get(request.id);
+        if (newRequestId) {
+          const newRequest = {
+            ...request,
+            id: newRequestId,
+            collectionId: collection.id,
+            folderId: request.folderId ? folderIdMap.get(request.folderId) : createdFolder.id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          await requestsStore.saveRequest(newRequest);
+        }
+      }
+      
+      if (window.$toast) {
+        window.$toast.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'Folder duplicated',
+          life: 3000
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Failed to duplicate folder:', error);
+  }
+};
+
+const duplicateCollection = async (collection) => {
+  try {
+    const newCollection = await collectionsStore.createCollection(
+      `${collection.name} (Copy)`,
+      collection.description
+    );
+    
+    const requestIds = collectAllRequestIds(collection);
+    const requests = await requestsStore.loadMultipleRequests(requestIds);
+    
+    const folderIdMap = new Map();
+    const requestIdMap = new Map();
+    
+    const duplicateFolders = (folders) => {
+      return folders.map(folder => {
+        const newFolderId = generateId();
+        folderIdMap.set(folder.id, newFolderId);
+        
+        return {
+          id: newFolderId,
+          name: folder.name,
+          folders: folder.folders ? duplicateFolders(folder.folders) : [],
+          requests: folder.requests ? folder.requests.map(req => {
+            const newRequestId = generateId();
+            requestIdMap.set(req.id, newRequestId);
+            return { id: newRequestId, name: req.name, method: req.method, url: req.url };
+          }) : []
+        };
+      });
+    };
+    
+    const newFolders = collection.folders ? duplicateFolders(collection.folders) : [];
+    const newRequests = collection.requests ? collection.requests.map(req => {
+      const newRequestId = generateId();
+      requestIdMap.set(req.id, newRequestId);
+      return { id: newRequestId, name: req.name, method: req.method, url: req.url };
+    }) : [];
+    
+    await collectionsStore.updateCollection(newCollection.id, {
+      folders: newFolders,
+      requests: newRequests
+    });
+    
+    for (const request of requests) {
+      const newRequestId = requestIdMap.get(request.id);
+      if (newRequestId) {
+        const newRequest = {
+          ...request,
+          id: newRequestId,
+          collectionId: newCollection.id,
+          folderId: request.folderId ? folderIdMap.get(request.folderId) : null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        await requestsStore.saveRequest(newRequest);
+      }
+    }
+    
+    expandedKeys.value = {
+      ...expandedKeys.value,
+      [`collection/${newCollection.id}`]: true
+    };
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: 'Collection duplicated',
+        life: 3000
+      });
+    }
+  } catch (error) {
+    console.error('Failed to duplicate collection:', error);
+  }
+};
+
+// Rename
+const renameItem = async () => {
+  if (!renameItemName.value.trim() || !renamingItem.value) return;
+  
+  const item = renamingItem.value;
+  const newName = renameItemName.value.trim();
+  
+  try {
+    if (item.type === 'collection') {
+      await collectionsStore.updateCollection(item.id, { name: newName });
+    } else if (item.type === 'folder') {
+      const collection = collections.value.find(c => 
+        findFolderInCollection(c, item.id)
+      );
+      if (collection) {
+        await collectionsStore.updateFolder(collection.id, item.id, { name: newName });
+      }
+    } else if (item.type === 'request') {
+      const updatedRequest = {
+        ...item,
+        name: newName,
+        updatedAt: new Date().toISOString()
+      };
+      await requestsStore.saveRequest(updatedRequest);
+      
+      if (item.collectionId) {
+        await collectionsStore.updateRequestReference(
+          item.collectionId,
+          item.id,
+          newName,
+          item.method,
+          item.url,
+          item.folderId
+        );
+      }
+    }
+    
+    showRenameDialog.value = false;
+    renamingItem.value = null;
+    renameItemName.value = '';
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: 'Renamed successfully',
+        life: 3000
+      });
+    }
+  } catch (error) {
+    console.error('Failed to rename:', error);
+  }
+};
+
+// Helper functions
+const findFolderInCollection = (collection, folderId) => {
+  const search = (folders) => {
+    for (const folder of folders) {
+      if (folder.id === folderId) return true;
+      if (folder.folders && search(folder.folders)) return true;
+    }
+    return false;
+  };
+  return collection ? search(collection.folders || []) : false;
+};
+
+const collectAllRequestIds = (item) => {
+  const ids = [];
+  if (item.requests && Array.isArray(item.requests)) {
+    ids.push(...item.requests.map(r => r.id));
+  }
+  if (item.folders && Array.isArray(item.folders)) {
+    for (const folder of item.folders) {
+      ids.push(...collectAllRequestIds(folder));
+    }
+  }
+  return ids;
+};
+
+// Create dialog
+const openCreateDialog = (mode = 'collection') => {
   dialogMode.value = mode;
-  selectedCollection.value = collection;
-  selectedFolder.value = folder;
   showCreateDialog.value = true;
   newItemName.value = '';
   newItemDescription.value = '';
@@ -318,35 +619,17 @@ const createItem = async () => {
   
   try {
     if (dialogMode.value === 'collection') {
-      const collection = await collectionsStore.createCollection(
+      await collectionsStore.createCollection(
         newItemName.value.trim(),
         newItemDescription.value.trim()
       );
-      
-      expandedKeys.value = {
-        ...expandedKeys.value,
-        [`collection-${collection.id}`]: true
-      };
-    } else if (dialogMode.value === 'folder') {
-      const folder = await collectionsStore.addFolder(
-        selectedCollection.value.id,
+    } else if (dialogMode.value === 'folder' && contextMenuNode.value) {
+      const { collection, folder } = getCollectionAndFolder(contextMenuNode.value);
+      await collectionsStore.addFolder(
+        collection.id,
         newItemName.value.trim(),
-        selectedFolder.value?.id
+        folder?.id
       );
-      
-      const expandKeys = {
-        ...expandedKeys.value,
-        [`collection-${selectedCollection.value.id}`]: true
-      };
-      
-      if (selectedFolder.value) {
-        const folderKey = findNodeKeyByData(selectedFolder.value, 'folder');
-        if (folderKey) {
-          expandKeys[folderKey] = true;
-        }
-      }
-      
-      expandedKeys.value = expandKeys;
     }
     
     showCreateDialog.value = false;
@@ -354,514 +637,47 @@ const createItem = async () => {
     newItemDescription.value = '';
   } catch (error) {
     console.error('Failed to create item:', error);
-    if (window.$toast) {
-      window.$toast.add({
-        severity: 'error',
-        summary: 'Error',
-        detail: 'Failed to create item',
-        life: 3000
-      });
-    }
   }
 };
 
-const findNodeKeyByData = (data, type) => {
-  const searchInNodes = (nodes, targetData, targetType) => {
-    for (const node of nodes) {
-      if (node.data.id === targetData.id && node.data.type === targetType) {
-        return node.key;
-      }
-      if (node.children && node.children.length > 0) {
-        const found = searchInNodes(node.children, targetData, targetType);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-  
-  return searchInNodes(treeNodes.value, data, type);
-};
-
-const duplicateCollection = async (collection) => {
-  // TODO: Implement full duplication with requests
-  try {
-    const newCollection = await collectionsStore.createCollection(
-      `${collection.name} (Copy)`,
-      collection.description
-    );
-    
-    expandedKeys.value = {
-      ...expandedKeys.value,
-      [`collection-${newCollection.id}`]: true
-    };
-  } catch (error) {
-    console.error('Failed to duplicate collection:', error);
-  }
-};
-
-const openRenameDialog = (type, item) => {
-  renamingItem.value = { type, item };
-  renameItemName.value = item.name;
-  showRenameDialog.value = true;
-};
-
-const renameItem = async () => {
-  if (!renameItemName.value.trim() || !renamingItem.value) return;
-  
-  const { type, item } = renamingItem.value;
-  const newName = renameItemName.value.trim();
-  
-  try {
-    if (type === 'collection') {
-      await collectionsStore.updateCollection(item.id, { name: newName });
-    } else if (type === 'folder') {
-      const collection = collections.value.find(c => 
-        findFolderById(c, item.id) !== null
-      );
-      if (collection) {
-        await collectionsStore.updateFolder(collection.id, item.id, { name: newName });
-      }
-    }
-    
-    showRenameDialog.value = false;
-    renamingItem.value = null;
-    renameItemName.value = '';
-  } catch (error) {
-    console.error('Failed to rename item:', error);
-  }
-};
-
-const addRequestToCollection = async (requestData) => {
-  const { collection, folder, request } = requestData;
-  
-  try {
-    await collectionsStore.addRequestReference(
-      collection.id,
-      request.id,
-      request.name,
-      request.method || 'GET',
-      request.url || '',
-      folder?.id
-    );
-    
-    const expandKeys = {
-      ...expandedKeys.value,
-      [`collection-${collection.id}`]: true
-    };
-    
-    if (folder) {
-      const folderKey = findNodeKeyByData(folder, 'folder');
-      if (folderKey) {
-        expandKeys[folderKey] = true;
-      }
-    }
-    
-    expandedKeys.value = expandKeys;
-  } catch (error) {
-    console.error('Failed to add request to collection:', error);
-  }
-};
-
-const handleMenuAction = async (action) => {
-  const collection = selectedCollection.value;
-  const folder = selectedFolder.value;
-  const request = selectedRequest.value;
-  const requestParentFolder = request?.parentFolder || folder;
-  
-  switch(action) {
-    case 'addRequest':
-      const requestData = {
-        collection: collection,
-        folder: folder,
-        name: `New Request in ${folder?.name || collection?.name}`
-      };
-      emit('add-request', requestData);
-      break;
-      
-    case 'openRequest':
-      if (request) {
-        emit('open-request', {
-          request: request,
-          collection: collection,
-          folder: requestParentFolder
-        });
-      }
-      break;
-      
-    case 'addFolder':
-      if (request) {
-        openCreateDialog('folder', collection, requestParentFolder);
-      } else {
-        openCreateDialog('folder', collection, folder);
-      }
-      break;
-      
-    case 'duplicate':
-      if (collection && !folder && !request) {
-        duplicateCollection(collection);
-      }
-      break;
-      
-    case 'rename':
-      if (request) {
-        openRenameDialog('request', request);
-      } else if (folder) {
-        openRenameDialog('folder', folder);
-      } else if (collection) {
-        openRenameDialog('collection', collection);
-      }
-      break;
-      
-    case 'delete':
-      if (request) {
-        confirm.require({
-          message: `确定要删除请求 "${request.name}" 吗？`,
-          header: '确认删除',
-          icon: 'pi pi-exclamation-triangle',
-          acceptLabel: '删除',
-          rejectLabel: '取消',
-          acceptClass: 'p-button-danger',
-          accept: async () => {
-            try {
-              await collectionsStore.removeRequestReference(collection.id, request.id);
-              await requestsStore.deleteRequest(request.id);
-            } catch (error) {
-              console.error('Failed to delete request:', error);
-            }
-          }
-        });
-      } else if (folder) {
-        confirm.require({
-          message: `确定要删除文件夹 "${folder.name}" 吗？此操作将同时删除其中的所有内容。`,
-          header: '确认删除',
-          icon: 'pi pi-exclamation-triangle',
-          acceptLabel: '删除',
-          rejectLabel: '取消',
-          acceptClass: 'p-button-danger',
-          accept: async () => {
-            try {
-              await collectionsStore.deleteFolder(collection.id, folder.id);
-            } catch (error) {
-              console.error('Failed to delete folder:', error);
-            }
-          }
-        });
-      } else if (collection) {
-        confirm.require({
-          message: `确定要删除集合 "${collection.name}" 吗？此操作将删除集合中的所有文件夹和请求。`,
-          header: '确认删除',
-          icon: 'pi pi-exclamation-triangle',
-          acceptLabel: '删除',
-          rejectLabel: '取消',
-          acceptClass: 'p-button-danger',
-          accept: async () => {
-            try {
-              await collectionsStore.deleteCollection(collection.id);
-              const newExpandedKeys = { ...expandedKeys.value };
-              delete newExpandedKeys[`collection-${collection.id}`];
-              expandedKeys.value = newExpandedKeys;
-            } catch (error) {
-              console.error('Failed to delete collection:', error);
-            }
-          }
-        });
-      }
-      break;
-      
-    case 'export':
-      if (collection && !folder && !request) {
-        await handleExportCollection(collection);
-      }
-      break;
-      
-    case 'import':
-      await handleImportCollection();
-      break;
-  }
-};
-
-const handleExportCollection = async (collection) => {
-  try {
-    // Load all requests in the collection
-    const requestIds = collectAllRequestIds(collection);
-    const requests = await requestsStore.loadMultipleRequests(requestIds);
-    
-    // Export
-    await importExportService.exportCollection(collection, requests);
-    
-    if (window.$toast) {
-      window.$toast.add({
-        severity: 'success',
-        summary: 'Success',
-        detail: `Collection "${collection.name}" exported successfully`,
-        life: 3000
-      });
-    }
-  } catch (error) {
-    console.error('Failed to export collection:', error);
-    if (window.$toast) {
-      window.$toast.add({
-        severity: 'error',
-        summary: 'Error',
-        detail: 'Failed to export collection',
-        life: 3000
-      });
-    }
-  }
-};
-
+// Import
 const handleImportCollection = async () => {
   try {
     const result = await importExportService.importCollection();
-    
-    if (!result) {
-      return; // User cancelled
-    }
+    if (!result) return;
     
     const { collection, requests } = result;
-    
-    // Save collection
     await collectionsStore.createCollection(collection.name, collection.description);
     const savedCollection = collectionsStore.collections.find(c => c.name === collection.name);
     
-    if (!savedCollection) {
-      throw new Error('Failed to create collection');
-    }
-    
-    // Update collection with imported structure
-    await collectionsStore.updateCollection(savedCollection.id, {
-      folders: collection.folders,
-      requests: collection.requests
-    });
-    
-    // Save all requests
-    for (const request of requests) {
-      request.collectionId = savedCollection.id;
-      await requestsStore.saveRequest(request);
-    }
-    
-    // Expand the imported collection
-    expandedKeys.value = {
-      ...expandedKeys.value,
-      [`collection-${savedCollection.id}`]: true
-    };
-    
-    if (window.$toast) {
-      window.$toast.add({
-        severity: 'success',
-        summary: 'Success',
-        detail: `Collection "${collection.name}" imported successfully`,
-        life: 3000
+    if (savedCollection) {
+      await collectionsStore.updateCollection(savedCollection.id, {
+        folders: collection.folders,
+        requests: collection.requests
       });
+      
+      for (const request of requests) {
+        request.collectionId = savedCollection.id;
+        await requestsStore.saveRequest(request);
+      }
+      
+      if (window.$toast) {
+        window.$toast.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'Collection imported',
+          life: 3000
+        });
+      }
     }
   } catch (error) {
-    console.error('Failed to import collection:', error);
-    if (window.$toast) {
-      window.$toast.add({
-        severity: 'error',
-        summary: 'Error',
-        detail: 'Failed to import collection',
-        life: 3000
-      });
-    }
+    console.error('Failed to import:', error);
   }
 };
 
-const collectAllRequestIds = (item) => {
-  const ids = [];
-  
-  // Collect request IDs from current level
-  if (item.requests && Array.isArray(item.requests)) {
-    ids.push(...item.requests.map(r => r.id));
-  }
-  
-  // Recursively collect from folders
-  if (item.folders && Array.isArray(item.folders)) {
-    for (const folder of item.folders) {
-      ids.push(...collectAllRequestIds(folder));
-    }
-  }
-  
-  return ids;
-};
-
-const getDialogTitle = () => {
-  return dialogMode.value === 'collection' ? '新建 Collection' : '新建 Folder';
-};
-
-const getDialogLabel = () => {
-  return dialogMode.value === 'collection' ? 'Collection 名称' : 'Folder 名称';
-};
-
-const getDialogPlaceholder = () => {
-  return dialogMode.value === 'collection' ? '输入 Collection 名称' : '输入 Folder 名称';
-};
-
-// Get currently selected collection/folder context
-const getSelectedContext = () => {
-  // Check if there's a selection
-  if (!selectedKeys.value || Object.keys(selectedKeys.value).length === 0) {
-    console.log('[getSelectedContext] No selection');
-    return null;
-  }
-  
-  const selectedKey = Object.keys(selectedKeys.value)[0];
-  console.log('[getSelectedContext] Selected key:', selectedKey);
-  
-  // 使用 '/' 分割 key（与 buildTreeNode 保持一致）
-  const keyParts = selectedKey.split('/');
-  console.log('[getSelectedContext] Key parts:', keyParts);
-  
-  // keyParts[0] = 'collection' or 'folder'
-  // keyParts[1] = collection ID
-  // keyParts[2+] = folder IDs (可能有多层)
-  
-  // Find the collection
-  const collectionId = keyParts[1];
-  const collection = collections.value.find(c => String(c.id) === collectionId);
-  
-  if (!collection) {
-    console.log('[getSelectedContext] Collection not found:', collectionId);
-    return null;
-  }
-  
-  console.log('[getSelectedContext] Found collection:', collection.name);
-  
-  // Check if it's a top-level collection (format: collection/{id})
-  if (keyParts[0] === 'collection' && keyParts.length === 2) {
-    console.log('[getSelectedContext] Top-level collection selected');
-    return { collection, folder: null };
-  }
-  
-  // Check if it's a folder (format: collection/{collectionId}/{folderId}/...)
-  if (keyParts.length > 2) {
-    // 递归查找文件夹对象
-    const findFolderByPath = (folders, pathParts, startIndex) => {
-      if (startIndex >= pathParts.length) {
-        return null;
-      }
-      
-      const currentFolderId = pathParts[startIndex];
-      const folder = folders.find(f => String(f.id) === currentFolderId);
-      
-      if (!folder) {
-        return null;
-      }
-      
-      // 如果这是最后一个 ID，返回这个 folder
-      if (startIndex === pathParts.length - 1) {
-        return folder;
-      }
-      
-      // 否则继续在子文件夹中查找
-      if (folder.folders && folder.folders.length > 0) {
-        return findFolderByPath(folder.folders, pathParts, startIndex + 1);
-      }
-      
-      return null;
-    };
-    
-    // 从 keyParts[2] 开始是 folder IDs
-    const folderPath = keyParts.slice(2);
-    const folder = findFolderByPath(collection.folders || [], folderPath, 0);
-    
-    if (folder) {
-      console.log('[getSelectedContext] Folder selected:', folder.name);
-      return { collection, folder };
-    }
-  }
-  
-  // Default to collection level
-  console.log('[getSelectedContext] Default to collection level');
-  return { collection, folder: null };
-};
-
-// 选中指定的请求节点
-const selectRequestNode = (requestId, collectionId, folderId) => {
-  if (!requestId || !collectionId) {
-    return;
-  }
-  
-  const collection = collections.value.find(c => c.id === collectionId);
-  if (!collection) {
-    return;
-  }
-  
-  // 检查请求是否在 collection 中
-  const requestExists = (target) => {
-    if (target.requests && target.requests.some(r => r.id === requestId)) {
-      return true;
-    }
-    if (target.folders) {
-      for (const folder of target.folders) {
-        if (requestExists(folder)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-  
-  if (!requestExists(collection)) {
-    selectedKeys.value = {};
-    return;
-  }
-  
-  // 构建请求节点的 key
-  let requestKey = `collection/${collectionId}`;
-  
-  if (folderId) {
-    const folderPath = findFolderPath(collection.folders || [], folderId);
-    if (folderPath) {
-      requestKey += `/${folderPath.join('/')}`;
-    } else {
-      return;
-    }
-  }
-  
-  requestKey += `/request/${requestId}`;
-  
-  // 展开所有父节点
-  const parts = requestKey.split('/');
-  const newExpandedKeys = { ...expandedKeys.value };
-  
-  newExpandedKeys[`collection/${parts[1]}`] = true;
-  
-  for (let i = 2; i < parts.length - 2; i++) {
-    const parentKey = parts.slice(0, i + 1).join('/');
-    newExpandedKeys[parentKey] = true;
-  }
-  
-  expandedKeys.value = newExpandedKeys;
-  selectedKeys.value = { [requestKey]: true };
-};
-
-// 查找 folder 的完整路径（返回 folder ID 数组）
-const findFolderPath = (folders, targetFolderId, currentPath = []) => {
-  for (const folder of folders) {
-    const newPath = [...currentPath, folder.id];
-    
-    if (folder.id === targetFolderId) {
-      return newPath;
-    }
-    
-    if (folder.folders && folder.folders.length > 0) {
-      const found = findFolderPath(folder.folders, targetFolderId, newPath);
-      if (found) {
-        return found;
-      }
-    }
-  }
-  return null;
-};
-
+// Expose methods
 defineExpose({
-  handleMenuAction,
-  openCreateDialog,
-  addRequestToCollection,
-  collections,
-  getSelectedContext,
-  selectRequestNode
+  collections
 });
 </script>
 
@@ -893,7 +709,7 @@ defineExpose({
     
     <div 
       v-else
-      class="tree-container"
+      @contextmenu="onTreeContextMenu"
     >
       <Tree 
         :value="treeNodes"
@@ -901,25 +717,25 @@ defineExpose({
         v-model:selectionKeys="selectedKeys"
         selectionMode="single"
         class="w-full"
-        @node-contextmenu="onNodeContextMenu"
+        @node-select="onNodeSelect"
       >
         <template #default="slotProps">
           <div class="flex items-center gap-2 flex-1 min-w-0">
             <span 
               v-if="slotProps.node.data.type === 'request'" 
               class="method-badge"
-              :class="getMethodColor(slotProps.node.data.method)"
+              :class="{
+                'text-green-600': slotProps.node.data.method === 'GET',
+                'text-blue-600': slotProps.node.data.method === 'POST',
+                'text-yellow-600': slotProps.node.data.method === 'PUT',
+                'text-red-600': slotProps.node.data.method === 'DELETE',
+                'text-purple-600': slotProps.node.data.method === 'PATCH'
+              }"
             >
               {{ (slotProps.node.data.method || 'get').toLowerCase() }}
             </span>
-            <span class="node-label flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+            <span class="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm">
               {{ slotProps.node.label }}
-            </span>
-            <span 
-              v-if="slotProps.node.data.type !== 'request' && getTotalRequestCount(slotProps.node.data) > 0" 
-              class="text-surface-500 dark:text-surface-400 text-xs"
-            >
-              ({{ getTotalRequestCount(slotProps.node.data) }})
             </span>
           </div>
         </template>
@@ -930,30 +746,24 @@ defineExpose({
 
     <Dialog 
       v-model:visible="showCreateDialog"
-      :header="getDialogTitle()"
+      :header="dialogMode === 'collection' ? '新建 Collection' : '新建 Folder'"
       :modal="true"
       :style="{ width: '25rem' }"
     >
       <div class="flex flex-col gap-4">
         <div>
-          <label for="itemName" class="block text-sm font-medium mb-2">
-            {{ getDialogLabel() }}
-          </label>
+          <label class="block text-sm font-medium mb-2">名称</label>
           <InputText 
-            id="itemName"
             v-model="newItemName"
-            :placeholder="getDialogPlaceholder()"
+            placeholder="输入名称"
             class="w-full"
             @keyup.enter="createItem"
             autofocus
           />
         </div>
         <div v-if="dialogMode === 'collection'">
-          <label for="itemDescription" class="block text-sm font-medium mb-2">
-            描述（可选）
-          </label>
+          <label class="block text-sm font-medium mb-2">描述（可选）</label>
           <InputText 
-            id="itemDescription"
             v-model="newItemDescription"
             placeholder="输入描述"
             class="w-full"
@@ -973,17 +783,14 @@ defineExpose({
 
     <Dialog 
       v-model:visible="showRenameDialog"
-      :header="`重命名 ${renamingItem?.type === 'collection' ? 'Collection' : renamingItem?.type === 'folder' ? 'Folder' : 'Request'}`"
+      header="重命名"
       :modal="true"
       :style="{ width: '25rem' }"
     >
       <div class="flex flex-col gap-4">
         <div>
-          <label for="renameItemName" class="block text-sm font-medium mb-2">
-            名称
-          </label>
+          <label class="block text-sm font-medium mb-2">名称</label>
           <InputText 
-            id="renameItemName"
             v-model="renameItemName"
             placeholder="输入新名称"
             class="w-full"
@@ -998,7 +805,7 @@ defineExpose({
         <Button 
           label="重命名" 
           @click="renameItem"
-          :disabled="!renameItemName.trim() || renameItemName.trim() === renamingItem?.item?.name"
+          :disabled="!renameItemName.trim() || renameItemName.trim() === renamingItem?.name"
         />
       </template>
     </Dialog>
@@ -1006,11 +813,6 @@ defineExpose({
 </template>
 
 <style scoped>
-.tree-container {
-  -webkit-user-select: none;
-  user-select: none;
-}
-
 :deep(.p-tree) {
   border: none;
   padding: 0;
@@ -1069,9 +871,5 @@ defineExpose({
   padding: 2px 6px;
   border-radius: 3px;
   flex-shrink: 0;
-}
-
-.node-label {
-  font-size: 0.875rem;
 }
 </style>

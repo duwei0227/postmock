@@ -330,20 +330,11 @@ const handleSaveRequest = async (saveData) => {
     const oldCollectionId = request.collectionId;
     const oldFolderId = request.folderId;
     
-    console.log('[handleSaveRequest] Old location:', { oldCollectionId, oldFolderId });
-    console.log('[handleSaveRequest] New location:', { collectionId: collection.id, folderId: folder?.id });
-    
     // 检查是否需要移动（位置发生变化）
     const needsMove = oldCollectionId && (oldCollectionId !== collection.id || oldFolderId !== folder?.id);
     
     if (needsMove) {
-      console.log('[handleSaveRequest] Moving request from old location...');
       await collectionsStore.removeRequestReference(oldCollectionId, request.id);
-      console.log('[handleSaveRequest] Removed from old location');
-    } else if (!oldCollectionId) {
-      console.log('[handleSaveRequest] First save, adding to collection');
-    } else {
-      console.log('[handleSaveRequest] Same location, just updating content');
     }
     
     // 更新请求的 collectionId 和 folderId
@@ -352,7 +343,6 @@ const handleSaveRequest = async (saveData) => {
     
     // 保存请求数据
     await requestsStore.saveRequest(request);
-    console.log('[handleSaveRequest] Request data saved');
     
     // 如果是首次保存或移动，添加到新位置
     if (!oldCollectionId || needsMove) {
@@ -364,7 +354,6 @@ const handleSaveRequest = async (saveData) => {
         request.url,
         folder?.id
       );
-      console.log('[handleSaveRequest] Request added to:', folder ? `${collection.name}/${folder.name}` : collection.name);
     } else {
       // 只是更新内容，更新 collection 中的请求引用
       await collectionsStore.updateRequestReference(
@@ -375,7 +364,6 @@ const handleSaveRequest = async (saveData) => {
         request.url,
         folder?.id
       );
-      console.log('[handleSaveRequest] Request reference updated');
     }
   } catch (error) {
     console.error('Failed to save request:', error);
@@ -398,16 +386,11 @@ const getRequestName = (requestId) => {
 
 // 监听 activeRequestIndex 变化，同步 CollectionsPanel 的选中状态
 watch(activeRequestIndex, async (newIndex) => {
-  console.log('[MainContent watch] activeRequestIndex changed to:', newIndex);
-  
   if (newIndex >= 0 && openRequests.value[newIndex]) {
     const requestId = openRequests.value[newIndex];
-    console.log('[MainContent watch] Loading request:', requestId);
     const request = await requestsStore.loadRequest(requestId);
-    console.log('[MainContent watch] Loaded request:', request?.name, 'collectionId:', request?.collectionId);
     
     if (request && request.collectionId && collectionsPanelRef.value) {
-      console.log('[MainContent watch] Calling selectRequestNode');
       collectionsPanelRef.value.selectRequestNode(
         request.id,
         request.collectionId,
