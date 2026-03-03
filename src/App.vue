@@ -4,9 +4,13 @@ import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { storageService } from '@/services/storage';
 import { useCollectionsStore } from '@/stores/collections';
+import { useRequestsStore } from '@/stores/requests';
 import { useEnvironmentsStore } from '@/stores/environments';
 import { useHistoryStore } from '@/stores/history';
 import { useAppStateStore } from '@/stores/appState';
+import { importExportService } from '@/services/import-export';
+import { parseCurl } from '@/utils/curl-parser';
+import { generateId } from '@/utils/id-generator';
 import Navbar from "@/components/Navbar.vue";
 import Toolbar from "@/components/Toolbar.vue";
 import MainContent from "@/components/MainContent.vue";
@@ -19,6 +23,7 @@ const mainContentRef = ref(null);
 
 // Initialize stores
 const collectionsStore = useCollectionsStore();
+const requestsStore = useRequestsStore();
 const environmentsStore = useEnvironmentsStore();
 const historyStore = useHistoryStore();
 const appStateStore = useAppStateStore();
@@ -76,6 +81,103 @@ const handleNewRequest = () => {
     mainContentRef.value.createNewRequest();
   }
 };
+
+const handleImportFile = async () => {
+  try {
+    const result = await importExportService.importCollection();
+    if (!result) return; // User cancelled
+    
+    const { collection, requests } = result;
+    
+    // Create collection
+    const newCollection = await collectionsStore.createCollection(
+      collection.name,
+      collection.description
+    );
+    
+    if (newCollection) {
+      // Update collection structure
+      await collectionsStore.updateCollection(newCollection.id, {
+        folders: collection.folders,
+        requests: collection.requests
+      });
+      
+      // Save all requests
+      for (const request of requests) {
+        request.collectionId = newCollection.id;
+        await requestsStore.saveRequest(request);
+      }
+      
+      toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: `Collection "${collection.name}" imported successfully`,
+        life: 3000
+      });
+    }
+  } catch (error) {
+    console.error('Failed to import collection:', error);
+    toast.add({
+      severity: 'error',
+      summary: 'Import Failed',
+      detail: error.message || 'Failed to import collection',
+      life: 5000
+    });
+  }
+};
+
+const handleImportCurl = async (curlCommand) => {
+  try {
+    const parsed = parseCurl(curlCommand);
+    
+    // Create a new request from parsed cURL
+    const newRequest = {
+      id: generateId(),
+      name: `${parsed.method} ${new URL(parsed.url).pathname}`,
+      method: parsed.method,
+      url: parsed.url,
+      params: [{ key: '', value: '', enabled: true }],
+      headers: parsed.headers,
+      body: parsed.body,
+      auth: {
+        type: 'none',
+        token: '',
+        username: '',
+        password: ''
+      },
+      tests: {
+        statusCodeTests: [{ operator: 'equals', value: '200', enabled: true }],
+        jsonFieldTests: [],
+        globalVariables: []
+      },
+      collectionId: null,
+      folderId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Save request
+    await requestsStore.saveRequest(newRequest);
+    
+    // Open in tab
+    appStateStore.addOpenRequest(newRequest.id);
+    
+    toast.add({
+      severity: 'success',
+      summary: 'Success',
+      detail: 'cURL command imported successfully',
+      life: 3000
+    });
+  } catch (error) {
+    console.error('Failed to import cURL:', error);
+    toast.add({
+      severity: 'error',
+      summary: 'Import Failed',
+      detail: 'Failed to parse cURL command',
+      life: 5000
+    });
+  }
+};
 </script>
 
 <template>
@@ -84,7 +186,11 @@ const handleNewRequest = () => {
     <ConfirmDialog />
     
     <Navbar />
-    <Toolbar @new-request="handleNewRequest" />
+    <Toolbar 
+      @new-request="handleNewRequest"
+      @import-file="handleImportFile"
+      @import-curl="handleImportCurl"
+    />
     <MainContent 
       ref="mainContentRef"
       class="pb-[33px]"
