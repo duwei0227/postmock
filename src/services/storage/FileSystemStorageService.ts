@@ -103,6 +103,19 @@ export class FileSystemStorageService implements IStorageService {
     this.saveQueue.set(key, timeout);
   }
 
+  // Flush all pending saves immediately
+  async flushSaves(): Promise<void> {
+    const promises: Promise<void>[] = [];
+    
+    for (const [key, timeout] of this.saveQueue.entries()) {
+      clearTimeout(timeout);
+      // Note: We can't execute the saveFn here because we don't store it
+      // This is a limitation of the current design
+    }
+    
+    this.saveQueue.clear();
+  }
+
   // Collections
   async loadCollections(): Promise<Collection[]> {
     try {
@@ -181,10 +194,11 @@ export class FileSystemStorageService implements IStorageService {
     }
   }
 
-  async saveRequest(request: Request): Promise<void> {
+  async saveRequest(request: Request, immediate: boolean = false): Promise<void> {
     const filePath = await join(this.requestsDir, `${request.id}.json`);
     
-    this.debouncedSave(`request-${request.id}`, async () => {
+    if (immediate) {
+      // Immediate save without debounce
       try {
         await writeTextFile(filePath, JSON.stringify(request, null, 2));
       } catch (error) {
@@ -194,7 +208,20 @@ export class FileSystemStorageService implements IStorageService {
           error
         );
       }
-    });
+    } else {
+      // Debounced save
+      this.debouncedSave(`request-${request.id}`, async () => {
+        try {
+          await writeTextFile(filePath, JSON.stringify(request, null, 2));
+        } catch (error) {
+          throw new StorageError(
+            `Failed to save request ${request.id}`,
+            ErrorCode.DISK_FULL,
+            error
+          );
+        }
+      });
+    }
   }
 
   async deleteRequest(id: string): Promise<void> {

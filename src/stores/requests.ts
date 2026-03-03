@@ -44,6 +44,23 @@ export const useRequestsStore = defineStore('requests', () => {
     }
   }
 
+  async function reloadRequestFromStorage(id: string): Promise<Request | null> {
+    // Force reload from storage, bypassing cache
+    isLoading.value = true;
+    try {
+      const request = await storageService.loadRequest(id);
+      if (request) {
+        requests.value.set(id, request);
+      }
+      return request;
+    } catch (e) {
+      console.error(`Failed to reload request ${id}:`, e);
+      return null;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function loadMultipleRequests(ids: string[]): Promise<Request[]> {
     const loadedRequests: Request[] = [];
     
@@ -57,10 +74,10 @@ export const useRequestsStore = defineStore('requests', () => {
     return loadedRequests;
   }
 
-  async function saveRequest(request: Request): Promise<void> {
+  async function saveRequest(request: Request, immediate: boolean = false): Promise<void> {
     try {
       request.updatedAt = new Date().toISOString();
-      await storageService.saveRequest(request);
+      await storageService.saveRequest(request, immediate);
       requests.value.set(request.id, request);
     } catch (e) {
       console.error(`Failed to save request ${request.id}:`, e);
@@ -98,6 +115,7 @@ export const useRequestsStore = defineStore('requests', () => {
     // Actions
     loadRequest,
     loadMultipleRequests,
+    reloadRequestFromStorage,
     saveRequest,
     deleteRequest,
     clearCache,

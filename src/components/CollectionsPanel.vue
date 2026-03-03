@@ -255,12 +255,11 @@ const handleAddRequest = () => {
   if (!contextMenuNode.value) return;
   const { collection, folder } = getCollectionAndFolder(contextMenuNode.value);
   
-  // 发出事件，让 MainContent 创建请求并打开保存对话框
+  // 发出事件，让 MainContent 创建请求
   emit('add-request', {
     collection,
     folder,
-    name: `New Request`,
-    showSaveDialog: true  // 标记需要显示保存对话框
+    name: `New Request`
   });
 };
 

@@ -26,6 +26,7 @@ const inputRef = ref(null);
 const showSuggestions = ref(false);
 const cursorPosition = ref(0);
 const currentVariablePrefix = ref('');
+const selectedSuggestionIndex = ref(0); // 当前选中的建议索引
 
 const variableSuggestions = computed(() => {
   console.log('VariableInput - currentVariablePrefix:', currentVariablePrefix.value);
@@ -69,6 +70,41 @@ const handleInput = (event) => {
   checkForVariableTrigger(value, event.target.selectionStart);
 };
 
+const handleKeyDown = (event) => {
+  // 只在显示建议时处理键盘事件
+  if (!showSuggestions.value || variableSuggestions.value.length === 0) {
+    return;
+  }
+  
+  switch (event.key) {
+    case 'ArrowDown':
+      event.preventDefault();
+      selectedSuggestionIndex.value = Math.min(
+        selectedSuggestionIndex.value + 1,
+        variableSuggestions.value.length - 1
+      );
+      break;
+      
+    case 'ArrowUp':
+      event.preventDefault();
+      selectedSuggestionIndex.value = Math.max(selectedSuggestionIndex.value - 1, 0);
+      break;
+      
+    case 'Enter':
+    case 'Tab':
+      if (variableSuggestions.value[selectedSuggestionIndex.value]) {
+        event.preventDefault();
+        selectVariable(variableSuggestions.value[selectedSuggestionIndex.value]);
+      }
+      break;
+      
+    case 'Escape':
+      event.preventDefault();
+      showSuggestions.value = false;
+      break;
+  }
+};
+
 const handleFocus = (event) => {
   // 将光标移动到末尾
   const input = event.target;
@@ -93,9 +129,11 @@ const checkForVariableTrigger = (value, position) => {
     const variableText = beforeCursor.substring(lastOpenBrace + 2);
     currentVariablePrefix.value = variableText;
     showSuggestions.value = true;
+    selectedSuggestionIndex.value = 0; // 重置选中索引
   } else {
     showSuggestions.value = false;
     currentVariablePrefix.value = '';
+    selectedSuggestionIndex.value = 0;
   }
 };
 
@@ -110,6 +148,7 @@ const selectVariable = (variable) => {
   emit('update:modelValue', newValue);
   showSuggestions.value = false;
   currentVariablePrefix.value = '';
+  selectedSuggestionIndex.value = 0;
   
   // 聚焦回输入框
   setTimeout(() => {
@@ -122,6 +161,7 @@ const selectVariable = (variable) => {
 const hideSuggestions = () => {
   setTimeout(() => {
     showSuggestions.value = false;
+    selectedSuggestionIndex.value = 0;
   }, 200);
 };
 
@@ -167,6 +207,7 @@ const hasInvalidVariables = computed(() => {
       :size="size"
       :class="['w-full', { 'invalid-variable': hasInvalidVariables }]"
       @input="handleInput"
+      @keydown="handleKeyDown"
       @focus="handleFocus"
       @blur="hideSuggestions"
     />
@@ -177,10 +218,16 @@ const hasInvalidVariables = computed(() => {
       class="absolute z-50 w-full mt-1 bg-surface-0 dark:bg-surface-900 border border-surface-300 dark:border-surface-700 rounded shadow-lg max-h-48 overflow-y-auto"
     >
       <div
-        v-for="variable in variableSuggestions"
+        v-for="(variable, index) in variableSuggestions"
         :key="variable.key"
+        :class="[
+          'px-3 py-2 cursor-pointer transition',
+          index === selectedSuggestionIndex 
+            ? 'bg-primary-100 dark:bg-primary-900/30' 
+            : 'hover:bg-surface-100 dark:hover:bg-surface-800'
+        ]"
         @mousedown="selectVariable(variable)"
-        class="px-3 py-2 cursor-pointer hover:bg-surface-100 dark:hover:bg-surface-800 transition"
+        @mouseenter="selectedSuggestionIndex = index"
       >
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-primary">{{ variable.key }}</span>

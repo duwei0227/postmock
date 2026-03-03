@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useCollectionsStore } from '@/stores/collections';
 import { useRequestsStore } from '@/stores/requests';
 import { useAppStateStore } from '@/stores/appState';
@@ -222,8 +222,14 @@ const closeRequest = async (index) => {
               resolve(true);
             }
           },
-          reject: () => {
-            // 丢弃并关闭
+          reject: async () => {
+            // 丢弃修改：恢复到原始版本
+            const wrapperRef = requestWrapperRefs.value[requestId];
+            if (wrapperRef && typeof wrapperRef.restoreOriginalRequest === 'function') {
+              console.log('[MainContent] Discarding changes, restoring original request...');
+              await wrapperRef.restoreOriginalRequest();
+            }
+            // 关闭 tab
             performCloseRequest(index);
             resolve(true);
           },
@@ -309,17 +315,22 @@ const closeOtherTabs = async (keepIndex) => {
     return new Promise((resolve) => {
       if (window.$confirm) {
         window.$confirm.require({
-          message: `You have ${unsavedRequests.length} tab(s) with unsaved changes. Do you want to close them?`,
+          message: `You have ${unsavedRequests.length} tab(s) with unsaved changes. Do you want to discard the changes and close them?`,
           header: 'Unsaved Changes',
           icon: 'pi pi-exclamation-triangle',
-          acceptLabel: 'Close All',
+          acceptLabel: 'Discard & Close',
           rejectLabel: 'Cancel',
           acceptClass: 'p-button-danger',
-          accept: () => {
-            // 清除所有未保存状态
-            unsavedRequests.forEach(requestId => {
+          accept: async () => {
+            // 还原所有有未保存变化的请求
+            for (const requestId of unsavedRequests) {
+              const wrapperRef = requestWrapperRefs.value[requestId];
+              if (wrapperRef && typeof wrapperRef.restoreOriginalRequest === 'function') {
+                console.log('[MainContent] Discarding changes for request:', requestId);
+                await wrapperRef.restoreOriginalRequest();
+              }
               delete unsavedChangesMap.value[requestId];
-            });
+            }
             
             // 只保留指定的 tab
             appStateStore.updateOpenRequests([keepRequestId]);
@@ -362,13 +373,22 @@ const closeAllTabs = async () => {
     return new Promise((resolve) => {
       if (window.$confirm) {
         window.$confirm.require({
-          message: `You have ${unsavedRequests.length} tab(s) with unsaved changes. Do you want to close them?`,
+          message: `You have ${unsavedRequests.length} tab(s) with unsaved changes. Do you want to discard the changes and close them?`,
           header: 'Unsaved Changes',
           icon: 'pi pi-exclamation-triangle',
-          acceptLabel: 'Close All',
+          acceptLabel: 'Discard & Close All',
           rejectLabel: 'Cancel',
           acceptClass: 'p-button-danger',
-          accept: () => {
+          accept: async () => {
+            // 还原所有有未保存变化的请求
+            for (const requestId of unsavedRequests) {
+              const wrapperRef = requestWrapperRefs.value[requestId];
+              if (wrapperRef && typeof wrapperRef.restoreOriginalRequest === 'function') {
+                console.log('[MainContent] Discarding changes for request:', requestId);
+                await wrapperRef.restoreOriginalRequest();
+              }
+            }
+            
             // 清除所有未保存状态
             unsavedChangesMap.value = {};
             
@@ -511,7 +531,7 @@ const openFromHistory = async (historyItem) => {
 
 const handleAddRequest = async (requestData) => {
   try {
-    // 创建基本的请求对象（不包含临时属性）
+    // 创建基本的请求对象
     const newRequest = {
       id: generateId(),
       name: requestData.name || 'New Request',
@@ -536,28 +556,41 @@ const handleAddRequest = async (requestData) => {
         jsonFieldTests: [],
         globalVariables: []
       },
-      collectionId: null,  // 不立即分配 collection
-      folderId: null,      // 不立即分配 folder
+      collectionId: requestData.collection?.id || null,
+      folderId: requestData.folder?.id || null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
-    // 保存请求数据到存储（不包含临时属性）
+    // 保存请求数据到存储
     await requestsStore.saveRequest(newRequest);
     
-    // 创建带有临时属性的请求对象，用于传递给 HttpRequest 组件
-    const requestWithTempProps = {
-      ...newRequest,
-      _initialCollection: requestData.collection,
-      _initialFolder: requestData.folder,
-      _showSaveDialog: requestData.showSaveDialog || false
-    };
-    
-    // 将带有临时属性的对象存入内存缓存（不持久化）
-    requestsStore.requests.set(newRequest.id, requestWithTempProps);
+    // 如果有 collection，添加引用
+    if (requestData.collection) {
+      await collectionsStore.addRequestReference(
+        requestData.collection.id,
+        newRequest.id,
+        newRequest.name,
+        newRequest.method,
+        newRequest.url,
+        requestData.folder?.id
+      );
+    }
     
     // 打开 tab
     appStateStore.addOpenRequest(newRequest.id);
+    
+    // 触发名称更新
+    requestNamesVersion.value++;
+    
+    // 自动选中新创建的 request
+    if (requestData.collection && collectionsPanelRef.value) {
+      collectionsPanelRef.value.selectRequestNode(
+        newRequest.id,
+        requestData.collection.id,
+        requestData.folder?.id
+      );
+    }
   } catch (error) {
     console.error('Failed to add request:', error);
     if (window.$toast) {
@@ -574,6 +607,8 @@ const handleAddRequest = async (requestData) => {
 const handleOpenRequest = (requestData) => {
   const { request } = requestData;
   appStateStore.addOpenRequest(request.id);
+  // 触发名称更新
+  requestNamesVersion.value++;
 };
 
 const handleRequestDeleted = (requestId) => {
@@ -610,6 +645,8 @@ const handleRequestDeleted = (requestId) => {
 const handleRequestDuplicated = (requestId) => {
   // 打开新创建的 duplicated request
   appStateStore.addOpenRequest(requestId);
+  // 触发名称更新
+  requestNamesVersion.value++;
 };
 
 const handleSaveRequest = async (saveData) => {
@@ -658,6 +695,9 @@ const handleSaveRequest = async (saveData) => {
     
     // 清除未保存状态
     updateUnsavedStatus(request.id, false);
+    
+    // 触发名称更新
+    requestNamesVersion.value++;
   } catch (error) {
     console.error('Failed to save request:', error);
     if (window.$toast) {
@@ -673,7 +713,10 @@ const handleSaveRequest = async (saveData) => {
 
 // 处理未保存变化状态更新
 const handleUnsavedChanges = (requestId, hasChanges) => {
+  console.log('[MainContent] handleUnsavedChanges called, requestId:', requestId, 'hasChanges:', hasChanges);
   updateUnsavedStatus(requestId, hasChanges);
+  // 同时触发名称更新（因为名称可能也变了）
+  requestNamesVersion.value++;
 };
 
 // 获取请求的显示名称
@@ -681,6 +724,37 @@ const getRequestName = (requestId) => {
   const request = requestsStore.requests.get(requestId);
   return request?.name || 'Untitled Request';
 };
+
+// 用于触发名称更新的响应式变量
+const requestNamesVersion = ref(0);
+
+// 创建一个 computed 来追踪所有打开请求的名称（确保响应式）
+const openRequestNames = computed(() => {
+  // 依赖 requestNamesVersion 和 openRequests 来触发重新计算
+  console.log('[MainContent] Computing openRequestNames, version:', requestNamesVersion.value);
+  
+  const names = {};
+  for (const requestId of openRequests.value) {
+    const request = requestsStore.requests.get(requestId);
+    const name = request?.name || 'Untitled Request';
+    console.log('[MainContent] Request', requestId, 'name:', name);
+    names[requestId] = name;
+  }
+  console.log('[MainContent] Computed names:', names);
+  return names;
+});
+
+// 监听 openRequests 变化，触发名称更新
+watch(openRequests, (newRequests, oldRequests) => {
+  console.log('[MainContent] openRequests changed, old:', oldRequests, 'new:', newRequests);
+  requestNamesVersion.value++;
+  
+  // 如果从空变为非空，加载请求
+  if (oldRequests && oldRequests.length === 0 && newRequests && newRequests.length > 0) {
+    console.log('[MainContent] openRequests changed from empty to non-empty, loading requests...');
+    loadOpenRequests();
+  }
+}, { deep: true });
 
 // 存储每个请求的未保存状态
 const unsavedChangesMap = ref({});
@@ -692,7 +766,10 @@ const hasRequestUnsavedChanges = (requestId) => {
 
 // 更新请求的未保存状态
 const updateUnsavedStatus = (requestId, hasChanges) => {
+  console.log('[MainContent] updateUnsavedStatus, requestId:', requestId, 'hasChanges:', hasChanges);
+  console.log('[MainContent] Before update, unsavedChangesMap:', unsavedChangesMap.value);
   unsavedChangesMap.value[requestId] = hasChanges;
+  console.log('[MainContent] After update, unsavedChangesMap:', unsavedChangesMap.value);
 };
 
 // 监听 activeRequestIndex 变化，同步 CollectionsPanel 的选中状态
@@ -710,6 +787,103 @@ watch(activeRequestIndex, async (newIndex) => {
     }
   }
 }, { immediate: true });
+
+// 组件挂载时预加载所有打开的请求到缓存
+onMounted(async () => {
+  console.log('[MainContent] Component mounted, waiting for appState to load...');
+  
+  // 等待 appState 加载完成
+  if (appStateStore.isLoading) {
+    console.log('[MainContent] AppState is still loading, waiting...');
+    // 使用 watch 等待加载完成
+    const unwatch = watch(
+      () => appStateStore.isLoading,
+      async (isLoading) => {
+        if (!isLoading) {
+          console.log('[MainContent] AppState loaded, now loading requests...');
+          unwatch(); // 停止监听
+          // 使用 nextTick 确保 openRequests 已经更新
+          await nextTick();
+          await loadOpenRequests();
+        }
+      }
+    );
+  } else {
+    // appState 已经加载完成
+    console.log('[MainContent] AppState already loaded, loading requests...');
+    // 使用 nextTick 确保 openRequests 已经更新
+    await nextTick();
+    await loadOpenRequests();
+  }
+});
+
+// 加载打开的请求
+const loadOpenRequests = async () => {
+  // 获取所有打开的请求 ID
+  const openRequestIds = openRequests.value;
+  
+  if (openRequestIds.length > 0) {
+    console.log('[MainContent] Found open requests:', openRequestIds);
+    
+    try {
+      // 预加载所有打开的请求到缓存
+      await requestsStore.loadMultipleRequests(openRequestIds);
+      console.log('[MainContent] Successfully loaded all open requests to cache');
+      console.log('[MainContent] Requests in store:', Array.from(requestsStore.requests.keys()));
+      
+      // 检查所有请求是否有未保存的变化
+      for (const requestId of openRequestIds) {
+        const request = await requestsStore.loadRequest(requestId);
+        if (request && request.collectionId) {
+          // 从 collection 中获取原始版本
+          const collection = collectionsStore.collections.find(c => c.id === request.collectionId);
+          if (collection) {
+            // 查找请求引用
+            const findRequestInCollection = (folders) => {
+              for (const folder of folders) {
+                const found = folder.requests.find(r => r.id === requestId);
+                if (found) return found;
+                if (folder.folders && folder.folders.length > 0) {
+                  const foundInSubfolder = findRequestInCollection(folder.folders);
+                  if (foundInSubfolder) return foundInSubfolder;
+                }
+              }
+              return null;
+            };
+            
+            let requestRef = collection.requests.find(r => r.id === requestId);
+            if (!requestRef && collection.folders && collection.folders.length > 0) {
+              requestRef = findRequestInCollection(collection.folders);
+            }
+            
+            if (requestRef) {
+              // 比较缓存版本和 collection 版本
+              const hasChanges = (
+                request.name !== requestRef.name ||
+                request.method !== requestRef.method ||
+                request.url !== requestRef.url
+              );
+              
+              console.log('[MainContent] Checking request', requestId, 'hasChanges:', hasChanges);
+              if (hasChanges) {
+                updateUnsavedStatus(requestId, true);
+              }
+            }
+          }
+        }
+      }
+      
+      // 触发名称更新
+      console.log('[MainContent] Triggering name update, old version:', requestNamesVersion.value);
+      requestNamesVersion.value++;
+      console.log('[MainContent] New version:', requestNamesVersion.value);
+    } catch (error) {
+      console.error('[MainContent] Failed to load open requests:', error);
+    }
+  } else {
+    console.log('[MainContent] No open requests to load');
+  }
+};
 
 defineExpose({
   createNewRequest
@@ -779,7 +953,7 @@ defineExpose({
                   class="text-xs"
                   :class="{ 'text-orange-600 dark:text-orange-400': hasRequestUnsavedChanges(requestId) }"
                 >
-                  {{ getRequestName(requestId) }}
+                  {{ openRequestNames[requestId] }}
                 </span>
                 <i 
                   class="pi pi-times text-xs ml-2 hover:text-red-600 cursor-pointer"
