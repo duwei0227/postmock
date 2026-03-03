@@ -141,42 +141,54 @@ const onNodeSelect = (node) => {
 
 const onTreeContextMenu = (event) => {
   event.preventDefault();
+  event.stopPropagation();
   
-  // 查找被点击的节点
+  // 查找被右键点击的节点内容区域
   let target = event.target;
   while (target && !target.classList.contains('p-tree-node-content')) {
     target = target.parentElement;
+    if (!target || target.classList.contains('p-tree')) break;
   }
   
-  if (!target) return;
+  if (!target || !target.classList.contains('p-tree-node-content')) return;
   
-  // 从 DOM 中获取节点的 key
-  const treeNode = target.closest('.p-tree-node');
-  if (!treeNode) return;
+  // 从节点内容中提取文本来匹配节点
+  const textContent = target.textContent.trim();
   
-  const nodeKey = treeNode.getAttribute('data-pc-section');
-  
-  // 从 treeNodes 中查找对应的节点
-  const findNode = (nodes, key) => {
+  // 递归查找匹配的节点
+  const findNodeByText = (nodes, text) => {
     for (const node of nodes) {
-      if (node.key === key) return node;
-      if (node.children) {
-        const found = findNode(node.children, key);
+      // 对于 request 节点，文本包含 method badge，需要特殊处理
+      const nodeText = node.data.type === 'request' 
+        ? `${(node.data.method || 'get').toLowerCase()}${node.label}`
+        : node.label;
+      
+      if (text.includes(node.label) || text === nodeText) {
+        return node;
+      }
+      
+      if (node.children && node.children.length > 0) {
+        const found = findNodeByText(node.children, text);
         if (found) return found;
       }
     }
     return null;
   };
   
-  // 尝试从选中的节点获取
-  const selectedKey = Object.keys(selectedKeys.value)[0];
-  if (selectedKey) {
-    const node = findNode(treeNodes.value, selectedKey);
-    if (node) {
-      contextMenuNode.value = node;
-      contextMenu.value.show(event);
-    }
+  const node = findNodeByText(treeNodes.value, textContent);
+  
+  if (node) {
+    contextMenuNode.value = node;
+    contextMenu.value.show(event);
   }
+};
+
+// 节点右键菜单处理（在模板中使用）
+const onNodeContextMenu = (node, event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  contextMenuNode.value = node;
+  contextMenu.value.show(event);
 };
 
 // Helper functions
@@ -720,7 +732,10 @@ defineExpose({
         @node-select="onNodeSelect"
       >
         <template #default="slotProps">
-          <div class="flex items-center gap-2 flex-1 min-w-0">
+          <div 
+            class="flex items-center gap-2 flex-1 min-w-0"
+            @contextmenu="onNodeContextMenu(slotProps.node, $event)"
+          >
             <span 
               v-if="slotProps.node.data.type === 'request'" 
               class="method-badge"
