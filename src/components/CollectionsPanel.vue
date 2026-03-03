@@ -129,12 +129,8 @@ const menuItems = computed(() => {
 
 // Event handlers
 const onNodeSelect = (node) => {
-  // 双击检测
-  const now = Date.now();
-  const lastClick = node.lastClickTime || 0;
-  node.lastClickTime = now;
-  
-  if (now - lastClick < 300 && node.data.type === 'request') {
+  // 如果是 request 类型，直接打开
+  if (node.data.type === 'request') {
     handleOpenRequest(node);
   }
 };
@@ -191,6 +187,15 @@ const onNodeContextMenu = (node, event) => {
   contextMenu.value.show(event);
 };
 
+// 禁用方向键导航
+const onTreeKeyDown = (event) => {
+  // 阻止方向键的默认行为
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+};
+
 // Helper functions
 const getCollectionAndFolder = (node) => {
   const keyParts = node.key.split('/');
@@ -232,8 +237,14 @@ const handleOpen = () => {
 const handleOpenRequest = (node) => {
   const { collection, folder } = getCollectionAndFolder(node);
   if (collection) {
+    // 只传递必要的 request 信息，不包含任何临时属性
     emit('open-request', {
-      request: node.data,
+      request: {
+        id: node.data.id,
+        name: node.data.name,
+        method: node.data.method,
+        url: node.data.url
+      },
       collection,
       folder
     });
@@ -243,10 +254,13 @@ const handleOpenRequest = (node) => {
 const handleAddRequest = () => {
   if (!contextMenuNode.value) return;
   const { collection, folder } = getCollectionAndFolder(contextMenuNode.value);
+  
+  // 发出事件，让 MainContent 创建请求并打开保存对话框
   emit('add-request', {
     collection,
     folder,
-    name: `New Request in ${folder?.name || collection?.name}`
+    name: `New Request`,
+    showSaveDialog: true  // 标记需要显示保存对话框
   });
 };
 
@@ -365,10 +379,14 @@ const duplicateRequest = async (collection, request, folder) => {
     const fullRequest = await requestsStore.loadRequest(request.id);
     if (!fullRequest) return;
     
+    // 使用 JSON.parse(JSON.stringify()) 创建完全独立的深拷贝
+    const clonedRequest = JSON.parse(JSON.stringify(fullRequest));
+    
+    // 更新克隆请求的属性
     const newRequest = {
-      ...fullRequest,
+      ...clonedRequest,
       id: generateId(),
-      name: `${fullRequest.name} (Copy)`,
+      name: `${clonedRequest.name} (Copy)`,
       collectionId: collection.id,
       folderId: folder?.id || null,
       createdAt: new Date().toISOString(),
@@ -437,8 +455,11 @@ const duplicateFolder = async (collection, folder) => {
       for (const request of requests) {
         const newRequestId = requestIdMap.get(request.id);
         if (newRequestId) {
+          // 使用深拷贝创建完全独立的请求副本
+          const clonedRequest = JSON.parse(JSON.stringify(request));
+          
           const newRequest = {
-            ...request,
+            ...clonedRequest,
             id: newRequestId,
             collectionId: collection.id,
             folderId: request.folderId ? folderIdMap.get(request.folderId) : createdFolder.id,
@@ -509,8 +530,11 @@ const duplicateCollection = async (collection) => {
     for (const request of requests) {
       const newRequestId = requestIdMap.get(request.id);
       if (newRequestId) {
+        // 使用深拷贝创建完全独立的请求副本
+        const clonedRequest = JSON.parse(JSON.stringify(request));
+        
         const newRequest = {
-          ...request,
+          ...clonedRequest,
           id: newRequestId,
           collectionId: newCollection.id,
           folderId: request.folderId ? folderIdMap.get(request.folderId) : null,
@@ -539,6 +563,39 @@ const duplicateCollection = async (collection) => {
   }
 };
 
+// 检查请求名称是否在同一目录下重复
+const isRequestNameDuplicate = (collectionId, folderId, requestName, excludeRequestId = null) => {
+  const collection = collections.value.find(c => c.id === collectionId);
+  if (!collection) return false;
+  
+  // 获取目标目录下的所有请求
+  let requests = [];
+  if (folderId) {
+    // 在指定 folder 中查找
+    const findFolder = (folders, targetId) => {
+      for (const folder of folders) {
+        if (folder.id === targetId) return folder;
+        if (folder.folders && folder.folders.length > 0) {
+          const found = findFolder(folder.folders, targetId);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    const folder = findFolder(collection.folders || [], folderId);
+    requests = folder?.requests || [];
+  } else {
+    // 在 collection 根目录下查找
+    requests = collection.requests || [];
+  }
+  
+  // 检查是否有同名请求（排除当前请求自己）
+  return requests.some(req => 
+    req.name.toLowerCase() === requestName.toLowerCase() && 
+    req.id !== excludeRequestId
+  );
+};
+
 // Rename
 const renameItem = async () => {
   if (!renameItemName.value.trim() || !renamingItem.value) return;
@@ -557,21 +614,51 @@ const renameItem = async () => {
         await collectionsStore.updateFolder(collection.id, item.id, { name: newName });
       }
     } else if (item.type === 'request') {
+      // 先加载完整的 request 数据
+      const fullRequest = await requestsStore.loadRequest(item.id);
+      if (!fullRequest) {
+        console.error('Request not found:', item.id);
+        if (window.$toast) {
+          window.$toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Request not found',
+            life: 3000
+          });
+        }
+        return;
+      }
+      
+      // 检查名称是否重复
+      if (isRequestNameDuplicate(fullRequest.collectionId, fullRequest.folderId, newName, fullRequest.id)) {
+        if (window.$toast) {
+          window.$toast.add({
+            severity: 'warn',
+            summary: 'Duplicate Name',
+            detail: 'A request with this name already exists in the same location',
+            life: 3000
+          });
+        }
+        return;
+      }
+      
+      // 更新完整的 request 对象
       const updatedRequest = {
-        ...item,
+        ...fullRequest,
         name: newName,
         updatedAt: new Date().toISOString()
       };
       await requestsStore.saveRequest(updatedRequest);
       
-      if (item.collectionId) {
+      // 更新 collection 中的引用
+      if (fullRequest.collectionId) {
         await collectionsStore.updateRequestReference(
-          item.collectionId,
-          item.id,
+          fullRequest.collectionId,
+          fullRequest.id,
           newName,
-          item.method,
-          item.url,
-          item.folderId
+          fullRequest.method,
+          fullRequest.url,
+          fullRequest.folderId
         );
       }
     }
@@ -722,6 +809,7 @@ defineExpose({
     <div 
       v-else
       @contextmenu="onTreeContextMenu"
+      @keydown="onTreeKeyDown"
     >
       <Tree 
         :value="treeNodes"

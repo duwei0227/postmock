@@ -270,6 +270,7 @@ const openFromHistory = async (historyItem) => {
 
 const handleAddRequest = async (requestData) => {
   try {
+    // 创建基本的请求对象（不包含临时属性）
     const newRequest = {
       id: generateId(),
       name: requestData.name || 'New Request',
@@ -294,26 +295,38 @@ const handleAddRequest = async (requestData) => {
         jsonFieldTests: [],
         globalVariables: []
       },
-      collectionId: requestData.collection?.id,
-      folderId: requestData.folder?.id,
+      collectionId: null,  // 不立即分配 collection
+      folderId: null,      // 不立即分配 folder
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
+    // 保存请求数据到存储（不包含临时属性）
     await requestsStore.saveRequest(newRequest);
     
-    await collectionsStore.addRequestReference(
-      requestData.collection.id,
-      newRequest.id,
-      newRequest.name,
-      newRequest.method,
-      newRequest.url,
-      requestData.folder?.id
-    );
+    // 创建带有临时属性的请求对象，用于传递给 HttpRequest 组件
+    const requestWithTempProps = {
+      ...newRequest,
+      _initialCollection: requestData.collection,
+      _initialFolder: requestData.folder,
+      _showSaveDialog: requestData.showSaveDialog || false
+    };
     
+    // 将带有临时属性的对象存入内存缓存（不持久化）
+    requestsStore.requests.set(newRequest.id, requestWithTempProps);
+    
+    // 打开 tab
     appStateStore.addOpenRequest(newRequest.id);
   } catch (error) {
     console.error('Failed to add request:', error);
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Failed to create request',
+        life: 3000
+      });
+    }
   }
 };
 
@@ -448,25 +461,28 @@ defineExpose({
       <!-- Top Toolbar with Tabs -->
       <div class="flex items-center border-b border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-950">
         <!-- Request Tabs -->
-        <div class="flex-1 flex items-center gap-1 px-2 py-1 overflow-x-auto">
-          <div 
-            v-for="(requestId, index) in openRequests"
-            :key="requestId"
-            :class="[
-              'flex items-center gap-2 px-3 py-1.5 rounded cursor-pointer transition text-sm whitespace-nowrap',
-              activeRequestIndex === index 
-                ? 'bg-surface-0 dark:bg-surface-950 text-surface-900 dark:text-surface-50' 
-                : 'text-surface-600 dark:text-surface-400 hover:bg-surface-100 dark:hover:bg-surface-700'
-            ]"
-            @click="activeRequestIndex = index"
-            @contextmenu="showTabContextMenu($event, index)"
+        <div class="flex-1 overflow-hidden">
+          <Tabs 
+            v-if="openRequests.length > 0"
+            :value="activeRequestIndex"
+            @update:value="activeRequestIndex = $event"
+            scrollable
           >
-            <span class="text-xs">{{ getRequestName(requestId) }}</span>
-            <i 
-              class="pi pi-times text-xs hover:text-red-600 cursor-pointer"
-              @click.stop="closeRequest(index)"
-            ></i>
-          </div>
+            <TabList>
+              <Tab 
+                v-for="(requestId, index) in openRequests"
+                :key="requestId"
+                :value="index"
+                @contextmenu="showTabContextMenu($event, index)"
+              >
+                <span class="text-xs">{{ getRequestName(requestId) }}</span>
+                <i 
+                  class="pi pi-times text-xs ml-2 hover:text-red-600 cursor-pointer"
+                  @click.stop="closeRequest(index)"
+                ></i>
+              </Tab>
+            </TabList>
+          </Tabs>
         </div>
 
         <!-- Action Buttons -->

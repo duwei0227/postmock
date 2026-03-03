@@ -278,6 +278,34 @@ const isResizing = ref(false);
 const isResponseCollapsed = ref(true); // 默认收起
 const testResults = ref(null); // 存储测试结果
 
+// 检查是否需要自动显示保存对话框
+if (props.request._showSaveDialog && props.request._initialCollection) {
+  // 延迟显示对话框，确保组件已完全挂载
+  setTimeout(() => {
+    saveRequestName.value = localRequest.value.name;
+    selectedCollection.value = props.request._initialCollection;
+    selectedFolder.value = props.request._initialFolder || null;
+    
+    // 设置选中的 key（使用 '/' 作为分隔符）
+    if (selectedFolder.value) {
+      // 构建 folder 的 key: collection/collectionId/folderId
+      const folderKey = `collection/${selectedCollection.value.id}/${selectedFolder.value.id}`;
+      selectedKeys.value = { [folderKey]: true };
+    } else {
+      // 只选中 collection: collection/collectionId
+      const collectionKey = `collection/${selectedCollection.value.id}`;
+      selectedKeys.value = { [collectionKey]: true };
+    }
+    
+    showSaveDialog.value = true;
+    
+    // 立即清除临时标记，防止再次触发
+    delete props.request._showSaveDialog;
+    delete props.request._initialCollection;
+    delete props.request._initialFolder;
+  }, 100);
+}
+
 // 获取可用变量
 const availableVariables = computed(() => {
   console.log('Computing availableVariables, environmentManager:', props.environmentManager);
@@ -910,6 +938,39 @@ const selectedFolder = ref(null);
 const collections = ref([]); // 从父组件获取的collections数据
 const selectedKeys = ref({}); // Tree组件的选中状态
 
+// 检查请求名称是否在同一目录下重复
+const isRequestNameDuplicate = (collectionId, folderId, requestName, excludeRequestId = null) => {
+  const collection = props.collections.find(c => c.id === collectionId);
+  if (!collection) return false;
+  
+  // 获取目标目录下的所有请求
+  let requests = [];
+  if (folderId) {
+    // 在指定 folder 中查找
+    const findFolder = (folders, targetId) => {
+      for (const folder of folders) {
+        if (folder.id === targetId) return folder;
+        if (folder.folders && folder.folders.length > 0) {
+          const found = findFolder(folder.folders, targetId);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    const folder = findFolder(collection.folders || [], folderId);
+    requests = folder?.requests || [];
+  } else {
+    // 在 collection 根目录下查找
+    requests = collection.requests || [];
+  }
+  
+  // 检查是否有同名请求（排除当前请求自己）
+  return requests.some(req => 
+    req.name.toLowerCase() === requestName.toLowerCase() && 
+    req.id !== excludeRequestId
+  );
+};
+
 const generateCurl = () => {
   let curl = `curl -X ${localRequest.value.method}`;
   
@@ -1261,6 +1322,20 @@ const saveRequestDirectly = () => {
 
 const saveRequest = () => {
   if (!saveRequestName.value.trim() || !selectedCollection.value) {
+    return;
+  }
+
+  // 检查名称是否重复
+  const targetFolderId = selectedFolder.value?.id || null;
+  if (isRequestNameDuplicate(selectedCollection.value.id, targetFolderId, saveRequestName.value.trim(), localRequest.value.id)) {
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'warn',
+        summary: 'Duplicate Name',
+        detail: 'A request with this name already exists in the same location',
+        life: 3000
+      });
+    }
     return;
   }
 
