@@ -183,7 +183,27 @@ const createNewRequest = async () => {
 const closeRequest = (index) => {
   const requests = [...openRequests.value];
   requests.splice(index, 1);
+  
+  // 更新打开的请求列表
   appStateStore.updateOpenRequests(requests);
+  
+  // 调整 activeRequestIndex
+  if (requests.length === 0) {
+    // 如果没有打开的 tab 了，重置为 -1（显示默认页面）
+    appStateStore.setActiveRequest(-1);
+  } else if (index <= activeRequestIndex.value) {
+    // 如果关闭的是当前选中的 tab 或之前的 tab
+    if (index === activeRequestIndex.value) {
+      // 关闭的是当前选中的 tab
+      // 如果关闭的是最后一个 tab，选中前一个；否则保持当前索引（会自动选中下一个）
+      const newIndex = index >= requests.length ? requests.length - 1 : index;
+      appStateStore.setActiveRequest(newIndex);
+    } else {
+      // 关闭的是当前选中 tab 之前的 tab，索引需要前移
+      appStateStore.setActiveRequest(activeRequestIndex.value - 1);
+    }
+  }
+  // 如果关闭的是当前选中 tab 之后的 tab，activeRequestIndex 不需要改变
 };
 
 const addToHistory = (log) => {
