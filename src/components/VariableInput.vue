@@ -32,12 +32,24 @@ const variableSuggestions = computed(() => {
   console.log('VariableInput - currentVariablePrefix:', currentVariablePrefix.value);
   console.log('VariableInput - availableVariables:', props.availableVariables);
   
+  // 定义内置变量的语法说明
+  const builtInVariableSyntax = {
+    '$timestamp': 'Current timestamp in milliseconds',
+    '$isoTimestamp': 'Current ISO 8601 timestamp',
+    '$randomInt': '$randomInt or $randomInt(start, end) - Random integer (default: 0-1000)',
+    '$guid': 'Random UUID/GUID',
+    '$date': '$date or $date("format") - Current date (default: yyyy-MM-dd)',
+    '$time': '$time or $time("format") - Current time (default: HH:mm:ss)',
+    '$datetime': '$datetime or $datetime("format") - Current datetime (default: yyyy-MM-dd HH:mm:ss)'
+  };
+  
   if (!currentVariablePrefix.value) {
     // 即使没有前缀，如果用户输入了 {{，也显示所有变量
     if (showSuggestions.value) {
       const allSuggestions = Object.keys(props.availableVariables).map(key => ({
         key,
-        value: props.availableVariables[key]
+        value: props.availableVariables[key],
+        syntax: builtInVariableSyntax[key] || null
       }));
       console.log('VariableInput - all suggestions:', allSuggestions);
       return allSuggestions;
@@ -50,7 +62,8 @@ const variableSuggestions = computed(() => {
     .filter(key => key.toLowerCase().includes(prefix))
     .map(key => ({
       key,
-      value: props.availableVariables[key]
+      value: props.availableVariables[key],
+      syntax: builtInVariableSyntax[key] || null
     }));
   
   console.log('VariableInput - filtered suggestions:', suggestions);
@@ -167,6 +180,30 @@ const hideSuggestions = () => {
 
 // 检查变量是否存在
 const checkVariableExists = (varName) => {
+  // 检查是否是 $randomInt 函数调用格式
+  const randomIntMatch = varName.match(/^\$randomInt\s*\(\s*\d+\s*,\s*\d+\s*\)$/);
+  if (randomIntMatch) {
+    return true; // $randomInt(start, end) 格式是有效的
+  }
+  
+  // 检查是否是 $date 函数调用格式
+  const dateMatch = varName.match(/^\$date\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
+  if (dateMatch) {
+    return true; // $date("format") 格式是有效的
+  }
+  
+  // 检查是否是 $time 函数调用格式
+  const timeMatch = varName.match(/^\$time\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
+  if (timeMatch) {
+    return true; // $time("format") 格式是有效的
+  }
+  
+  // 检查是否是 $datetime 函数调用格式
+  const datetimeMatch = varName.match(/^\$datetime\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
+  if (datetimeMatch) {
+    return true; // $datetime("format") 格式是有效的
+  }
+  
   return props.availableVariables.hasOwnProperty(varName);
 };
 
@@ -215,7 +252,7 @@ const hasInvalidVariables = computed(() => {
     <!-- Variable Suggestions Dropdown -->
     <div
       v-if="showSuggestions && variableSuggestions.length > 0"
-      class="absolute z-50 w-full mt-1 bg-surface-0 dark:bg-surface-900 border border-surface-300 dark:border-surface-700 rounded shadow-lg max-h-48 overflow-y-auto"
+      class="absolute z-50 w-full mt-1 bg-surface-0 dark:bg-surface-900 border border-surface-300 dark:border-surface-700 rounded shadow-lg max-h-64 overflow-y-auto"
     >
       <div
         v-for="(variable, index) in variableSuggestions"
@@ -229,11 +266,19 @@ const hasInvalidVariables = computed(() => {
         @mousedown="selectVariable(variable)"
         @mouseenter="selectedSuggestionIndex = index"
       >
-        <div class="flex items-center justify-between">
-          <span class="text-sm font-medium text-primary">{{ variable.key }}</span>
-          <span class="text-xs text-surface-500 dark:text-surface-400 ml-2 truncate max-w-xs">
-            {{ variable.value }}
-          </span>
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-primary">{{ variable.key }}</span>
+            <span 
+              v-if="!variable.syntax"
+              class="text-xs text-surface-500 dark:text-surface-400 ml-2 truncate max-w-xs"
+            >
+              {{ variable.value }}
+            </span>
+          </div>
+          <div v-if="variable.syntax" class="text-xs text-surface-600 dark:text-surface-400">
+            {{ variable.syntax }}
+          </div>
         </div>
       </div>
     </div>
