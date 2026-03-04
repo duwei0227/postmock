@@ -50,6 +50,12 @@ const openAddEnv = () => {
   };
 };
 
+// Method to open create dialog directly (for global shortcut)
+const openCreateDialog = () => {
+  showEnvDialog.value = true;
+  openAddEnv();
+};
+
 const openEditEnv = (env) => {
   envDialogMode.value = 'edit';
   editingEnv.value = JSON.parse(JSON.stringify(env));
@@ -243,7 +249,8 @@ defineExpose({
   getCurrentEnvironmentVariables,
   getAllAvailableVariables,
   replaceVariables,
-  currentEnvironment
+  currentEnvironment,
+  openCreateDialog
 });
 </script>
 

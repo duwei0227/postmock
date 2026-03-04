@@ -886,7 +886,9 @@ const loadOpenRequests = async () => {
 };
 
 defineExpose({
-  createNewRequest
+  createNewRequest,
+  collectionsPanelRef,
+  environmentManagerRef
 });
 </script>
 

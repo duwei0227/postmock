@@ -15,11 +15,13 @@ import Navbar from "@/components/Navbar.vue";
 import Toolbar from "@/components/Toolbar.vue";
 import MainContent from "@/components/MainContent.vue";
 import Footer from "@/components/Footer.vue";
+import CreateNewModal from "@/components/CreateNewModal.vue";
 
 const consoleLogs = ref([]);
 const toast = useToast();
 const confirm = useConfirm();
 const mainContentRef = ref(null);
+const showCreateNewModal = ref(false);
 
 // Initialize stores
 const collectionsStore = useCollectionsStore();
@@ -32,6 +34,9 @@ const appStateStore = useAppStateStore();
 onMounted(async () => {
   window.$toast = toast;
   window.$confirm = confirm;
+  
+  // Add global keyboard shortcut for Ctrl+N
+  window.addEventListener('keydown', handleGlobalKeyDown);
   
   try {
     // Initialize storage service
@@ -58,6 +63,9 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(async () => {
+  // Remove global keyboard shortcut
+  window.removeEventListener('keydown', handleGlobalKeyDown);
+  
   try {
     // Save app state before closing
     await appStateStore.saveState();
@@ -192,12 +200,43 @@ const handleImportCurl = async (curlCommand) => {
     });
   }
 };
+
+// Global keyboard shortcut handler
+const handleGlobalKeyDown = (event) => {
+  // Ctrl+N or Cmd+N to open Create New modal
+  if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+    event.preventDefault();
+    showCreateNewModal.value = true;
+  }
+};
+
+// Handle create action from modal
+const handleCreate = (type) => {
+  if (type === 'request') {
+    handleNewRequest();
+  } else if (type === 'collection') {
+    // Access CollectionsPanel through MainContent ref
+    if (mainContentRef.value?.collectionsPanelRef) {
+      mainContentRef.value.collectionsPanelRef.openCreateDialog('collection');
+    }
+  } else if (type === 'environment') {
+    // Access EnvironmentManager through MainContent ref
+    if (mainContentRef.value?.environmentManagerRef) {
+      mainContentRef.value.environmentManagerRef.openCreateDialog();
+    }
+  }
+};
 </script>
 
 <template>
   <div class="app-container flex flex-col h-screen bg-surface-0 dark:bg-surface-950 relative">
     <Toast position="top-right" />
     <ConfirmDialog />
+    
+    <CreateNewModal 
+      v-model:visible="showCreateNewModal"
+      @create="handleCreate"
+    />
     
     <Navbar />
     <Toolbar 

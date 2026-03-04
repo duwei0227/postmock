@@ -990,7 +990,8 @@ const clearSelection = () => {
 defineExpose({
   collections,
   selectRequestNode,
-  clearSelection
+  clearSelection,
+  openCreateDialog
 });
 </script>
 
