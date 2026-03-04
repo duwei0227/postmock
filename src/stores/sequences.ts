@@ -31,16 +31,11 @@ export const useSequencesStore = defineStore('sequences', () => {
   }
 
   async function saveSequences() {
-    console.log('[SequencesStore] saveSequences called');
-    console.log('[SequencesStore] sequences to save:', sequences.value);
     try {
       const obj = Object.fromEntries(sequences.value);
-      console.log('[SequencesStore] converted to object:', obj);
       await storageService.saveSequences(obj);
-      console.log('[SequencesStore] Write completed successfully');
     } catch (error) {
-      console.error('[SequencesStore] Failed to save sequences:', error);
-      console.error('[SequencesStore] Error stack:', error.stack);
+      console.error('Failed to save sequences:', error);
       throw error;
     }
   }
@@ -97,23 +92,13 @@ export const useSequencesStore = defineStore('sequences', () => {
   }
 
   async function updateSequence(name: string, updates: Partial<Sequence>) {
-    console.log('[SequencesStore] updateSequence called');
-    console.log('[SequencesStore] name:', name);
-    console.log('[SequencesStore] updates:', updates);
-    console.log('[SequencesStore] current sequences:', Array.from(sequences.value.keys()));
-    
     const sequence = sequences.value.get(name);
-    console.log('[SequencesStore] found sequence:', sequence);
     
     if (sequence) {
-      console.log('[SequencesStore] Updating existing sequence');
       Object.assign(sequence, updates);
       sequence.updatedAt = new Date().toISOString();
-      console.log('[SequencesStore] Updated sequence:', sequence);
       await saveSequences();
-      console.log('[SequencesStore] Saved to storage');
     } else {
-      console.log('[SequencesStore] Creating new sequence');
       // 如果序列不存在，创建一个新的
       const newSequence: Sequence = {
         name,
@@ -124,11 +109,8 @@ export const useSequencesStore = defineStore('sequences', () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      console.log('[SequencesStore] New sequence:', newSequence);
       sequences.value.set(name, newSequence);
-      console.log('[SequencesStore] Added to map, now have:', Array.from(sequences.value.keys()));
       await saveSequences();
-      console.log('[SequencesStore] Saved to storage');
     }
   }
 

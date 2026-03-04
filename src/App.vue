@@ -8,6 +8,7 @@ import { useRequestsStore } from '@/stores/requests';
 import { useEnvironmentsStore } from '@/stores/environments';
 import { useHistoryStore } from '@/stores/history';
 import { useAppStateStore } from '@/stores/appState';
+import { useSequencesStore } from '@/stores/sequences';
 import { importExportService } from '@/services/import-export';
 import { parseCurl } from '@/utils/curl-parser';
 import { generateId } from '@/utils/id-generator';
@@ -29,6 +30,7 @@ const requestsStore = useRequestsStore();
 const environmentsStore = useEnvironmentsStore();
 const historyStore = useHistoryStore();
 const appStateStore = useAppStateStore();
+const sequencesStore = useSequencesStore();
 
 // 将 toast 和 confirm 挂载到全局，供子组件使用
 onMounted(async () => {
@@ -47,7 +49,8 @@ onMounted(async () => {
       collectionsStore.loadCollections(),
       environmentsStore.loadEnvironments(),
       historyStore.loadHistory(),
-      appStateStore.loadState()
+      appStateStore.loadState(),
+      sequencesStore.loadSequences()
     ]);
     
     console.log('Application data loaded successfully');

@@ -236,20 +236,14 @@ const openEditSequence = (sequence) => {
 const saveSequence = async () => {
   if (!editingSequence.value) return;
   
-  console.log('[EnvironmentManager] saveSequence called');
-  console.log('[EnvironmentManager] editingSequence:', editingSequence.value);
-  
   try {
     const updates = {
       currentValue: editingSequence.value.currentValue,
       step: editingSequence.value.step,
       padding: editingSequence.value.padding
     };
-    console.log('[EnvironmentManager] Calling updateSequence with:', editingSequence.value.name, updates);
     
     await sequencesStore.updateSequence(editingSequence.value.name, updates);
-    
-    console.log('[EnvironmentManager] updateSequence succeeded');
     
     if (window.$toast) {
       window.$toast.add({
@@ -264,7 +258,6 @@ const saveSequence = async () => {
     editingSequence.value = null;
   } catch (error) {
     console.error('[EnvironmentManager] Failed to update sequence:', error);
-    console.error('[EnvironmentManager] Error stack:', error.stack);
     if (window.$toast) {
       window.$toast.add({
         severity: 'error',
@@ -791,19 +784,9 @@ const replaceVariables = (str) => {
     console.log(`[EnvironmentManager] Processing variable: "${trimmedVarName}" from match: "${match}"`);
     
     // 检查是否是 $sequence 函数调用
-    // 支持格式: 
-    // - $sequence: 默认值
-    // - $sequence(100): 只指定起始值（纯数字）
-    // - $sequence(name): 指定名称
-    // - $sequence(name, padding, start, step): 位置参数
-    // - $sequence(start=100): 命名参数，只指定起始值
-    // - $sequence(step=10): 命名参数，只指定步长
-    // - $sequence(name=myseq, start=100, step=10): 多个命名参数
     if (trimmedVarName === '$sequence' || trimmedVarName.startsWith('$sequence(')) {
-      console.log(`[EnvironmentManager] Detected $sequence variable: "${trimmedVarName}"`);
-      
       let name = 'default';
-      let padding = 0;
+      let padding = null; // null 表示未指定，使用序列配置中的值
       let startValue = 1;
       let step = 1;
       
@@ -811,109 +794,68 @@ const replaceVariables = (str) => {
       const paramsMatch = trimmedVarName.match(/^\$sequence\s*\(\s*([^)]*)\s*\)$/);
       if (paramsMatch) {
         const paramsStr = paramsMatch[1].trim();
-        console.log(`[EnvironmentManager] Params string: "${paramsStr}"`);
         
         // 检查是否包含 = 号（命名参数）
         if (paramsStr.includes('=')) {
           // 命名参数格式：name=value, key=value
           const paramPairs = paramsStr.split(',').map(p => p.trim()).filter(p => p);
-          console.log(`[EnvironmentManager] Param pairs:`, paramPairs);
           
           paramPairs.forEach(pair => {
-            console.log(`[EnvironmentManager] Processing pair: "${pair}"`);
             const equalIndex = pair.indexOf('=');
-            if (equalIndex === -1) {
-              console.warn(`[EnvironmentManager] Invalid parameter format: ${pair}`);
-              return;
-            }
+            if (equalIndex === -1) return;
             
             const key = pair.substring(0, equalIndex).trim();
             const value = pair.substring(equalIndex + 1).trim();
-            const cleanValue = value.replace(/^['"]|['"]$/g, ''); // 移除引号
-            
-            console.log(`[EnvironmentManager] Key: "${key}", Value: "${cleanValue}"`);
+            const cleanValue = value.replace(/^['"]|['"]$/g, '');
             
             switch (key.toLowerCase()) {
               case 'name':
                 name = cleanValue;
-                console.log(`[EnvironmentManager] Set name to: ${name}`);
                 break;
               case 'padding':
               case 'pad':
                 padding = parseInt(cleanValue, 10) || 0;
-                console.log(`[EnvironmentManager] Set padding to: ${padding}`);
                 break;
               case 'start':
               case 'startvalue':
                 startValue = parseInt(cleanValue, 10) || 1;
-                console.log(`[EnvironmentManager] Set startValue to: ${startValue}`);
                 break;
               case 'step':
                 step = parseInt(cleanValue, 10) || 1;
-                console.log(`[EnvironmentManager] Set step to: ${step}`);
                 break;
-              default:
-                console.warn(`[EnvironmentManager] Unknown parameter: ${key}`);
             }
           });
         } else {
           // 位置参数格式：按顺序解析
           const params = paramsStr.split(',').map(p => p.trim().replace(/^['"]|['"]$/g, '')).filter(p => p);
-          console.log(`[EnvironmentManager] Position params:`, params);
           
           if (params.length > 0 && params[0]) {
             // 检查第一个参数是否是纯数字（只指定起始值的情况）
             if (/^\d+$/.test(params[0])) {
               startValue = parseInt(params[0], 10);
-              console.log(`[EnvironmentManager] First param is number, set startValue to: ${startValue}`);
             } else {
               // 第一个参数不是纯数字，视为名称
               name = params[0];
-              console.log(`[EnvironmentManager] First param is name: ${name}`);
-              if (params[1]) {
-                padding = parseInt(params[1], 10) || 0;
-                console.log(`[EnvironmentManager] Set padding to: ${padding}`);
-              }
-              if (params[2]) {
-                startValue = parseInt(params[2], 10) || 1;
-                console.log(`[EnvironmentManager] Set startValue to: ${startValue}`);
-              }
-              if (params[3]) {
-                step = parseInt(params[3], 10) || 1;
-                console.log(`[EnvironmentManager] Set step to: ${step}`);
-              }
+              if (params[1]) padding = parseInt(params[1], 10) || 0;
+              if (params[2]) startValue = parseInt(params[2], 10) || 1;
+              if (params[3]) step = parseInt(params[3], 10) || 1;
             }
           }
         }
-      } else if (trimmedVarName === '$sequence') {
-        // 无参数，使用默认值
-        console.log(`[EnvironmentManager] Using default sequence parameters`);
-      } else {
-        console.log(`[EnvironmentManager] Invalid $sequence syntax: "${trimmedVarName}", returning original match`);
-        return match;
       }
-      
-      console.log(`[EnvironmentManager] Final sequence params - name: ${name}, padding: ${padding}, start: ${startValue}, step: ${step}`);
       
       // 检查序列是否已存在
       const existingSeq = sequencesStore.getAllSequences().find(s => s.name === name);
       
       if (existingSeq) {
-        // 序列已存在：
-        // - 忽略 startValue 和 step 参数（这些是序列的核心配置，不应该在使用时修改）
-        // - padding 参数仅用于本次格式化
-        console.log(`[EnvironmentManager] Sequence "${name}" already exists, using its configuration`);
-        console.log(`[EnvironmentManager] Existing config - currentValue: ${existingSeq.currentValue}, step: ${existingSeq.step}, padding: ${existingSeq.padding}`);
-        console.log(`[EnvironmentManager] Request padding: ${padding}, will use for formatting only`);
-        
+        // 序列已存在：忽略 startValue 和 step 参数
+        // padding: 如果用户指定了，使用指定的值；否则使用序列配置中的值
         const sequenceValue = sequencesStore.getNextValue(name, padding, existingSeq.startValue, existingSeq.step);
-        console.log(`[EnvironmentManager] Replacing ${match} with sequence value: ${sequenceValue}`);
         return sequenceValue;
       } else {
         // 序列不存在，使用提供的参数创建新序列
-        console.log(`[EnvironmentManager] Creating new sequence "${name}" with provided parameters`);
-        const sequenceValue = sequencesStore.getNextValue(name, padding, startValue, step);
-        console.log(`[EnvironmentManager] Replacing ${match} with sequence value: ${sequenceValue}`);
+        // padding: 如果用户没有指定，使用 0（不填充）
+        const sequenceValue = sequencesStore.getNextValue(name, padding ?? 0, startValue, step);
         return sequenceValue;
       }
     }
