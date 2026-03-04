@@ -251,6 +251,31 @@ const generateRandomString = (length = 10, options = { alpha: true, numeric: tru
   return result;
 };
 
+// 生成随机字母字符串（大小写混合）
+const generateRandomAlpha = (length = 10) => {
+  return generateRandomString(length, { uppercase: true, lowercase: true, numeric: false });
+};
+
+// 生成随机数字字符串
+const generateRandomNumeric = (length = 10) => {
+  return generateRandomString(length, { uppercase: false, lowercase: false, numeric: true });
+};
+
+// 生成随机大写字母字符串
+const generateRandomUppercase = (length = 10) => {
+  return generateRandomString(length, { uppercase: true, lowercase: false, numeric: false });
+};
+
+// 生成随机小写字母字符串
+const generateRandomLowercase = (length = 10) => {
+  return generateRandomString(length, { uppercase: false, lowercase: true, numeric: false });
+};
+
+// 生成随机字母数字混合字符串
+const generateRandomAlphanumeric = (length = 10) => {
+  return generateRandomString(length, { uppercase: true, lowercase: true, numeric: true });
+};
+
 // 生成随机中文字符串的辅助函数
 const generateRandomChineseString = (length = 10) => {
   // 常见的中文词组和短语（2-4个字）- 扩充到500+个
@@ -372,7 +397,12 @@ const getAllAvailableVariables = () => {
   // $date: 默认格式 yyyy-MM-dd，也可以使用 $date(format) 自定义格式
   // $time: 默认格式 HH:mm:ss，也可以使用 $time(format) 自定义格式
   // $datetime: 默认格式 yyyy-MM-dd HH:mm:ss，也可以使用 $datetime(format) 自定义格式
-  // $randomString: 默认长度 10，包含大小写字母和数字，可以使用 $randomString(length, options) 自定义
+  // $randomString: 默认长度 10，包含大小写字母和数字（已废弃，建议使用具体类型的变量）
+  // $randomAlpha: 默认长度 10，仅字母（大小写混合），可以使用 $randomAlpha(length) 自定义
+  // $randomNumeric: 默认长度 10，仅数字，可以使用 $randomNumeric(length) 自定义
+  // $randomUppercase: 默认长度 10，仅大写字母，可以使用 $randomUppercase(length) 自定义
+  // $randomLowercase: 默认长度 10，仅小写字母，可以使用 $randomLowercase(length) 自定义
+  // $randomAlphanumeric: 默认长度 10，字母数字混合，可以使用 $randomAlphanumeric(length) 自定义
   // $randomChinese: 默认长度 10，生成随机中文字符，可以使用 $randomChinese(length) 自定义
   const builtInVars = {
     '$timestamp': Date.now().toString(),
@@ -382,7 +412,12 @@ const getAllAvailableVariables = () => {
     '$date': formatDateTime(now, 'yyyy-MM-dd'),
     '$time': formatDateTime(now, 'HH:mm:ss'),
     '$datetime': formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'),
-    '$randomString': generateRandomString(10),
+    '$randomString': generateRandomAlphanumeric(10), // 保留兼容性，默认为 alphanumeric
+    '$randomAlpha': generateRandomAlpha(10),
+    '$randomNumeric': generateRandomNumeric(10),
+    '$randomUppercase': generateRandomUppercase(10),
+    '$randomLowercase': generateRandomLowercase(10),
+    '$randomAlphanumeric': generateRandomAlphanumeric(10),
     '$randomChinese': generateRandomChineseString(10),
   };
   
@@ -411,7 +446,7 @@ const replaceVariables = (str) => {
       return randomValue.toString();
     }
     
-    // 检查是否是 $randomString 函数调用
+    // 检查是否是 $randomString 函数调用（保留向后兼容）
     // 支持格式: $randomString(length) 或 $randomString(length, "alpha") 或 $randomString(length, "numeric") 或 $randomString(length, "alphanumeric")
     const randomStringMatch = trimmedVarName.match(/^\$randomString\s*\(\s*(\d+)(?:\s*,\s*['"]([^'"]+)['"])?\s*\)$/);
     if (randomStringMatch) {
@@ -449,6 +484,51 @@ const replaceVariables = (str) => {
       const randomString = generateRandomString(length, options);
       console.log(`[EnvironmentManager] Replacing ${match} with random string (length: ${length}, type: ${type}): ${randomString}`);
       return randomString;
+    }
+    
+    // 检查是否是 $randomAlpha 函数调用
+    const randomAlphaMatch = trimmedVarName.match(/^\$randomAlpha\s*\(\s*(\d+)\s*\)$/);
+    if (randomAlphaMatch) {
+      const length = parseInt(randomAlphaMatch[1], 10);
+      const randomAlpha = generateRandomAlpha(length);
+      console.log(`[EnvironmentManager] Replacing ${match} with random alpha (length: ${length}): ${randomAlpha}`);
+      return randomAlpha;
+    }
+    
+    // 检查是否是 $randomNumeric 函数调用
+    const randomNumericMatch = trimmedVarName.match(/^\$randomNumeric\s*\(\s*(\d+)\s*\)$/);
+    if (randomNumericMatch) {
+      const length = parseInt(randomNumericMatch[1], 10);
+      const randomNumeric = generateRandomNumeric(length);
+      console.log(`[EnvironmentManager] Replacing ${match} with random numeric (length: ${length}): ${randomNumeric}`);
+      return randomNumeric;
+    }
+    
+    // 检查是否是 $randomUppercase 函数调用
+    const randomUppercaseMatch = trimmedVarName.match(/^\$randomUppercase\s*\(\s*(\d+)\s*\)$/);
+    if (randomUppercaseMatch) {
+      const length = parseInt(randomUppercaseMatch[1], 10);
+      const randomUppercase = generateRandomUppercase(length);
+      console.log(`[EnvironmentManager] Replacing ${match} with random uppercase (length: ${length}): ${randomUppercase}`);
+      return randomUppercase;
+    }
+    
+    // 检查是否是 $randomLowercase 函数调用
+    const randomLowercaseMatch = trimmedVarName.match(/^\$randomLowercase\s*\(\s*(\d+)\s*\)$/);
+    if (randomLowercaseMatch) {
+      const length = parseInt(randomLowercaseMatch[1], 10);
+      const randomLowercase = generateRandomLowercase(length);
+      console.log(`[EnvironmentManager] Replacing ${match} with random lowercase (length: ${length}): ${randomLowercase}`);
+      return randomLowercase;
+    }
+    
+    // 检查是否是 $randomAlphanumeric 函数调用
+    const randomAlphanumericMatch = trimmedVarName.match(/^\$randomAlphanumeric\s*\(\s*(\d+)\s*\)$/);
+    if (randomAlphanumericMatch) {
+      const length = parseInt(randomAlphanumericMatch[1], 10);
+      const randomAlphanumeric = generateRandomAlphanumeric(length);
+      console.log(`[EnvironmentManager] Replacing ${match} with random alphanumeric (length: ${length}): ${randomAlphanumeric}`);
+      return randomAlphanumeric;
     }
     
     // 检查是否是 $randomChinese 函数调用

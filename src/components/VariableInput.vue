@@ -41,7 +41,12 @@ const variableSuggestions = computed(() => {
     '$date': '$date or $date("format") - Current date (default: yyyy-MM-dd)',
     '$time': '$time or $time("format") - Current time (default: HH:mm:ss)',
     '$datetime': '$datetime or $datetime("format") - Current datetime (default: yyyy-MM-dd HH:mm:ss)',
-    '$randomString': '$randomString or $randomString(length, "type") - Random string (default: 10 chars, alphanumeric). Types: alpha, numeric, alphanumeric, uppercase, lowercase',
+    '$randomString': '$randomString or $randomString(length, "type") - Random string (deprecated, use specific types)',
+    '$randomAlpha': '$randomAlpha or $randomAlpha(length) - Random letters (default: 10 chars, mixed case)',
+    '$randomNumeric': '$randomNumeric or $randomNumeric(length) - Random digits (default: 10 chars)',
+    '$randomUppercase': '$randomUppercase or $randomUppercase(length) - Random uppercase letters (default: 10 chars)',
+    '$randomLowercase': '$randomLowercase or $randomLowercase(length) - Random lowercase letters (default: 10 chars)',
+    '$randomAlphanumeric': '$randomAlphanumeric or $randomAlphanumeric(length) - Random letters and digits (default: 10 chars)',
     '$randomChinese': '$randomChinese or $randomChinese(length) - Random Chinese characters (default: 10 chars)'
   };
   
@@ -188,10 +193,40 @@ const checkVariableExists = (varName) => {
     return true; // $randomInt(start, end) 格式是有效的
   }
   
-  // 检查是否是 $randomString 函数调用格式
+  // 检查是否是 $randomString 函数调用格式（保留向后兼容）
   const randomStringMatch = varName.match(/^\$randomString\s*\(\s*\d+(?:\s*,\s*['"]([^'"]+)['"])?\s*\)$/);
   if (randomStringMatch) {
     return true; // $randomString(length) 或 $randomString(length, "type") 格式是有效的
+  }
+  
+  // 检查是否是 $randomAlpha 函数调用格式
+  const randomAlphaMatch = varName.match(/^\$randomAlpha\s*\(\s*\d+\s*\)$/);
+  if (randomAlphaMatch) {
+    return true;
+  }
+  
+  // 检查是否是 $randomNumeric 函数调用格式
+  const randomNumericMatch = varName.match(/^\$randomNumeric\s*\(\s*\d+\s*\)$/);
+  if (randomNumericMatch) {
+    return true;
+  }
+  
+  // 检查是否是 $randomUppercase 函数调用格式
+  const randomUppercaseMatch = varName.match(/^\$randomUppercase\s*\(\s*\d+\s*\)$/);
+  if (randomUppercaseMatch) {
+    return true;
+  }
+  
+  // 检查是否是 $randomLowercase 函数调用格式
+  const randomLowercaseMatch = varName.match(/^\$randomLowercase\s*\(\s*\d+\s*\)$/);
+  if (randomLowercaseMatch) {
+    return true;
+  }
+  
+  // 检查是否是 $randomAlphanumeric 函数调用格式
+  const randomAlphanumericMatch = varName.match(/^\$randomAlphanumeric\s*\(\s*\d+\s*\)$/);
+  if (randomAlphanumericMatch) {
+    return true;
   }
   
   // 检查是否是 $randomChinese 函数调用格式
