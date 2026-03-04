@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, computed, inject } from 'vue';
+import { ref, watch, computed, inject, onMounted, onUnmounted } from 'vue';
 import JsonEditor from './JsonEditor.vue';
 import CodeEditor from './CodeEditor.vue';
 import VariableInput from './VariableInput.vue';
@@ -1822,6 +1822,25 @@ const selectedPath = computed(() => {
   }
   
   return parts.join(' / ');
+});
+
+// Keyboard shortcut handler for Ctrl+S
+const handleKeyDown = (event) => {
+  // Check for Ctrl+S (or Cmd+S on Mac)
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault(); // Prevent browser's default save dialog
+    handleSaveClick();
+  }
+};
+
+// Add keyboard event listener on mount
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown);
+});
+
+// Remove keyboard event listener on unmount
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
 });
 
 // 暴露方法供父组件调用
