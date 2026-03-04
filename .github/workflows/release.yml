@@ -53,36 +53,25 @@ jobs:
           VERSION="${{ env.PACKAGE_VERSION }}"
           CHANGELOG=$(cat /tmp/changelog.txt)
           
-          cat > /tmp/release-body.md << 'EOF'
-## 📦 下载安装
-
-请根据你的操作系统下载对应的安装包：
-
-| 平台 | 文件类型 | 说明 |
-|------|---------|------|
-| Windows | .msi | 推荐，安装程序 |
-| Windows | .exe | 便携版 |
-| macOS | .dmg | 通用版本（Intel + Apple Silicon） |
-| Linux | .AppImage | 便携版，无需安装 |
-| Linux | .deb | Debian/Ubuntu 安装包 |
-| Linux | .rpm | Fedora/RHEL/CentOS 安装包 |
-| Linux | .flatpak | Flatpak 通用包 |
-
-### Flatpak 安装
-
-下载 .flatpak 文件后安装：
-```
-flatpak install cn.probiecoder.postmock.flatpak
-```
-
-或从 Flathub 安装（即将推出）：
-```
-flatpak install flathub cn.probiecoder.postmock
-```
-
-## ✨ 更新内容
-
-EOF
+          echo "## 下载安装" > /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "请根据你的操作系统下载对应的安装包：" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "**Windows:**" >> /tmp/release-body.md
+          echo "- .msi - 推荐，安装程序" >> /tmp/release-body.md
+          echo "- .exe - 便携版" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "**macOS:**" >> /tmp/release-body.md
+          echo "- .dmg - 通用版本" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "**Linux:**" >> /tmp/release-body.md
+          echo "- .AppImage - 便携版，无需安装" >> /tmp/release-body.md
+          echo "- .deb - Debian/Ubuntu 安装包" >> /tmp/release-body.md
+          echo "- .rpm - Fedora/RHEL/CentOS 安装包" >> /tmp/release-body.md
+          echo "- .flatpak - Flatpak 通用包" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "## 更新内容" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
           echo "$CHANGELOG" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
           echo "---" >> /tmp/release-body.md
@@ -110,7 +99,6 @@ EOF
               prerelease: false,
               generate_release_notes: true
             })
-            return data.id
             return data.id
 
   build-tauri:
