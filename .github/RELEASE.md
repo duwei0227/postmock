@@ -84,16 +84,36 @@
 
 ### CI/CD 工作流
 
-- **build.yml**: 在每次推送和 PR 时自动构建和测试
+- **build.yml**: 在 PR 时自动构建和测试
 - **release.yml**: 在推送标签时自动构建并创建 Release
+  - Job 1: create-release - 创建 GitHub Release
+  - Job 2: build-tauri - 构建所有平台的安装包（Windows、macOS、Linux）
+  - Job 3: build-flatpak - 构建 Flatpak 包（依赖 build-tauri 完成）
 
 ### 产物说明
 
 发布后，用户可以下载以下格式的安装包：
 
-- **macOS**: `.dmg` (通用二进制包含 Intel 和 Apple Silicon)
-- **Linux**: `.AppImage` (通用), `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL/openSUSE)
-- **Windows**: `.msi` (安装程序), `.exe` (便携版)
+**Windows:**
+- `.msi` - Windows Installer 安装程序（推荐）
+- `.exe` - NSIS 安装程序
+- `.zip` - 便携版（解压即用，无需安装）
+
+**macOS:**
+- `.dmg` - 磁盘映像（通用二进制包含 Intel 和 Apple Silicon）
+
+**Linux:**
+- `.AppImage` - 通用便携版（无需安装）
+- `.deb` - Debian/Ubuntu 安装包
+- `.rpm` - Fedora/RHEL/openSUSE 安装包
+- `.flatpak` - Flatpak 通用包
+- `.tar.gz` - 便携版（解压即用，无需安装）
+
+构建顺序：
+1. 创建 Release
+2. 并行构建所有平台的原生包
+3. 构建便携版（zip 和 tar.gz）
+4. 基于 AppImage 构建 Flatpak 包
 
 ### 注意事项
 

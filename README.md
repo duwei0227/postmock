@@ -36,9 +36,20 @@ TODO: 添加应用截图
 
 访问 [Releases](https://github.com/duwei0227/postmock/releases) 页面下载适合你操作系统的安装包：
 
-- **Windows**: `.msi` 或 `.exe`
-- **macOS**: `.dmg`
-- **Linux**: `.AppImage`、`.deb`、`.rpm` 或 `.flatpak`
+**Windows:**
+- `.msi` - 安装程序（推荐）
+- `.exe` - NSIS 安装程序
+- `.zip` - 便携版（解压即用）
+
+**macOS:**
+- `.dmg` - 磁盘映像
+
+**Linux:**
+- `.AppImage` - 便携版（无需安装）
+- `.deb` - Debian/Ubuntu 安装包
+- `.rpm` - Fedora/RHEL/CentOS 安装包
+- `.flatpak` - Flatpak 通用包
+- `.tar.gz` - 便携版（解压即用）
 
 或者通过 Flathub 安装（即将推出）：
 

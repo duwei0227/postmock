@@ -1,9 +1,12 @@
 [package]
 name = "postmock"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Modern API testing tool - A cross-platform desktop application for testing HTTP APIs"
+authors = ["duwei0227"]
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/duwei0227/postmock"
+homepage = "https://github.com/duwei0227/postmock"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

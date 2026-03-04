@@ -8,34 +8,29 @@
 - 手动触发
 
 **功能：**
-1. 创建 GitHub Release
-2. 在多平台构建应用：
+1. **create-release** - 创建 GitHub Release
+   - 从 CHANGELOG.md 提取更新说明
+   - 创建 Release（非草稿）
+
+2. **build-tauri** - 构建所有平台（并行）
    - macOS (Intel + Apple Silicon)
    - Linux (Ubuntu 22.04)
    - Windows
-3. 生成安装包：
-   - Windows: `.msi`, `.exe`
-   - macOS: `.dmg`
-   - Linux: `.AppImage`, `.deb`, `.rpm`
-4. 上传到 GitHub Release
-5. 从 CHANGELOG.md 提取更新说明
+   - 生成安装包：`.msi`, `.exe`, `.dmg`, `.AppImage`, `.deb`, `.rpm`
+   - 上传到 GitHub Release
 
-**运行时间：** 约 30-45 分钟
+3. **build-portable** - 构建便携版（并行，依赖 build-tauri）
+   - Windows: `.zip` 便携版
+   - Linux: `.tar.gz` 便携版
+   - 包含启动脚本和说明文档
+   - 上传到 GitHub Release
 
-### flatpak.yml - Flatpak 构建工作流
-**触发条件：**
-- 推送 tag（格式：`v*.*.*`）
-- 手动触发
+4. **build-flatpak** - 构建 Flatpak（串行，依赖 build-tauri）
+   - 下载 AppImage
+   - 构建 Flatpak 包
+   - 上传到 GitHub Release
 
-**功能：**
-1. 等待 release.yml 完成
-2. 下载 AppImage
-3. 构建 Flatpak 包
-4. 上传到 GitHub Release
-
-**运行时间：** 约 10-15 分钟
-
-**注意：** 此工作流依赖 release.yml 先完成，因为它需要 AppImage 文件。
+**运行时间：** 约 40-55 分钟（包含所有格式）
 
 ### build.yml - CI 测试工作流
 **触发条件：**

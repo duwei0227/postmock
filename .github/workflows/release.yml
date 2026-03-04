@@ -28,25 +28,69 @@ jobs:
       - name: Get version
         run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
       
-      - name: Extract changelog
+      - name: Extract or generate changelog
         id: changelog
         run: |
-          VERSION="v${{ env.PACKAGE_VERSION }}"
+          VERSION="${{ env.PACKAGE_VERSION }}"
           
-          # 从 CHANGELOG.md 提取当前版本的更新内容
+          # 方式 1: 尝试从 CHANGELOG.md 提取
           if [ -f "CHANGELOG.md" ]; then
-            # 提取版本段落（从 ## [version] 到下一个 ## 或文件末尾）
-            CHANGELOG=$(sed -n "/## \[${{ env.PACKAGE_VERSION }}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2)
+            CHANGELOG=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2)
+          fi
+          
+          # 方式 2: 如果 CHANGELOG.md 中没有找到，从 Git commits 自动生成
+          if [ -z "$CHANGELOG" ]; then
+            echo "No changelog found in CHANGELOG.md, generating from git commits..."
+            
+            # 获取上一个 tag
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            
+            if [ -z "$PREV_TAG" ]; then
+              # 如果是第一个 tag，获取所有 commits
+              echo "First release, including all commits"
+              COMMITS=$(git log --pretty=format:"- %s" --no-merges)
+            else
+              # 获取两个 tag 之间的 commits
+              echo "Generating changelog from $PREV_TAG to HEAD"
+              COMMITS=$(git log --pretty=format:"- %s" --no-merges $PREV_TAG..HEAD)
+            fi
+            
+            # 按照 Conventional Commits 分类
+            FEATURES=$(echo "$COMMITS" | grep -i "^- feat" | sed 's/^- feat[:(]/- /' | sed 's/):/:/g' || echo "")
+            FIXES=$(echo "$COMMITS" | grep -i "^- fix" | sed 's/^- fix[:(]/- /' | sed 's/):/:/g' || echo "")
+            DOCS=$(echo "$COMMITS" | grep -i "^- docs" | sed 's/^- docs[:(]/- /' | sed 's/):/:/g' || echo "")
+            CHORES=$(echo "$COMMITS" | grep -i "^- chore" | sed 's/^- chore[:(]/- /' | sed 's/):/:/g' || echo "")
+            OTHERS=$(echo "$COMMITS" | grep -vi "^- \(feat\|fix\|docs\|chore\)" || echo "")
+            
+            # 构建 changelog
+            CHANGELOG=""
+            
+            if [ -n "$FEATURES" ]; then
+              CHANGELOG="${CHANGELOG}### 新增功能\n\n${FEATURES}\n\n"
+            fi
+            
+            if [ -n "$FIXES" ]; then
+              CHANGELOG="${CHANGELOG}### 问题修复\n\n${FIXES}\n\n"
+            fi
+            
+            if [ -n "$DOCS" ]; then
+              CHANGELOG="${CHANGELOG}### 文档更新\n\n${DOCS}\n\n"
+            fi
+            
+            if [ -n "$OTHERS" ] && [ "$OTHERS" != "" ]; then
+              CHANGELOG="${CHANGELOG}### 其他变更\n\n${OTHERS}\n\n"
+            fi
             
             if [ -z "$CHANGELOG" ]; then
               CHANGELOG="查看完整变更日志了解详情。"
             fi
-          else
-            CHANGELOG="查看完整变更日志了解详情。"
           fi
           
-          # 保存到文件以避免多行问题
-          echo "$CHANGELOG" > /tmp/changelog.txt
+          # 保存到文件
+          echo -e "$CHANGELOG" > /tmp/changelog.txt
+          
+          echo "Generated changelog:"
+          cat /tmp/changelog.txt
       
       - name: Create release body
         run: |
@@ -59,16 +103,18 @@ jobs:
           echo "" >> /tmp/release-body.md
           echo "**Windows:**" >> /tmp/release-body.md
           echo "- .msi - 推荐，安装程序" >> /tmp/release-body.md
-          echo "- .exe - 便携版" >> /tmp/release-body.md
+          echo "- .exe - NSIS 安装程序" >> /tmp/release-body.md
+          echo "- .zip - 便携版，解压即用" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
           echo "**macOS:**" >> /tmp/release-body.md
-          echo "- .dmg - 通用版本" >> /tmp/release-body.md
+          echo "- .dmg - 通用版本（Intel + Apple Silicon）" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
           echo "**Linux:**" >> /tmp/release-body.md
           echo "- .AppImage - 便携版，无需安装" >> /tmp/release-body.md
           echo "- .deb - Debian/Ubuntu 安装包" >> /tmp/release-body.md
           echo "- .rpm - Fedora/RHEL/CentOS 安装包" >> /tmp/release-body.md
           echo "- .flatpak - Flatpak 通用包" >> /tmp/release-body.md
+          echo "- .tar.gz - 便携版，解压即用" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
           echo "## 更新内容" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
@@ -149,3 +195,268 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+  build-portable:
+    name: Build Portable Archives
+    needs: build-tauri
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'ubuntu-22.04'
+            archive_type: 'tar.gz'
+            binary_name: 'postmock'
+          - platform: 'windows-latest'
+            archive_type: 'zip'
+            binary_name: 'postmock.exe'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'npm'
+      
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      
+      - name: Install frontend dependencies
+        run: npm ci
+      
+      - name: Build Tauri app
+        run: npm run tauri build
+      
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building portable version: $VERSION"
+      
+      - name: Create portable archive (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          PORTABLE_DIR="postmock-${VERSION}-linux-x64-portable"
+          
+          mkdir -p "$PORTABLE_DIR"
+          
+          # Copy binary
+          cp src-tauri/target/release/postmock "$PORTABLE_DIR/"
+          
+          # Copy resources
+          cp LICENSE "$PORTABLE_DIR/"
+          cp README.md "$PORTABLE_DIR/"
+          
+          # Create README for portable version
+          {
+            echo "PostMock Portable Edition"
+            echo "========================="
+            echo ""
+            echo "This is a portable version of PostMock. No installation required!"
+            echo ""
+            echo "Usage"
+            echo "-----"
+            echo "1. Extract this archive to any location"
+            echo "2. Run: ./postmock"
+            echo ""
+            echo "Requirements"
+            echo "------------"
+            echo "- Linux x64 (Ubuntu 22.04+ or equivalent)"
+            echo "- GTK 3.24+"
+            echo "- WebKit2GTK 4.1+"
+            echo ""
+            echo "Data Storage"
+            echo "------------"
+            echo "Application data is stored in ~/.local/share/postmock/"
+            echo ""
+            echo "For more information, visit"
+            echo "https://github.com/duwei0227/postmock"
+          } > "$PORTABLE_DIR/README-PORTABLE.txt"
+          
+          # Create launcher script
+          {
+            echo "#!/bin/bash"
+            echo 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"'
+            echo 'cd "$SCRIPT_DIR"'
+            echo './postmock "$@"'
+          } > "$PORTABLE_DIR/postmock.sh"
+          chmod +x "$PORTABLE_DIR/postmock.sh"
+          chmod +x "$PORTABLE_DIR/postmock"
+          
+          # Create archive
+          tar -czf "postmock-${VERSION}-linux-x64-portable.tar.gz" "$PORTABLE_DIR"
+          
+          echo "Created: postmock-${VERSION}-linux-x64-portable.tar.gz"
+          ls -lh "postmock-${VERSION}-linux-x64-portable.tar.gz"
+      
+      - name: Create portable archive (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $VERSION = node -p "require('./package.json').version"
+          $PORTABLE_DIR = "postmock-$VERSION-windows-x64-portable"
+          
+          New-Item -ItemType Directory -Path $PORTABLE_DIR -Force
+          
+          # Copy binary
+          Copy-Item "src-tauri/target/release/postmock.exe" "$PORTABLE_DIR/"
+          
+          # Copy resources
+          Copy-Item "LICENSE" "$PORTABLE_DIR/"
+          Copy-Item "README.md" "$PORTABLE_DIR/"
+          
+          # Create README for portable version
+          $readmeContent = @(
+            "PostMock Portable Edition",
+            "=========================",
+            "",
+            "This is a portable version of PostMock. No installation required!",
+            "",
+            "Usage",
+            "-----",
+            "1. Extract this archive to any location",
+            "2. Double-click postmock.exe",
+            "   Or run from command line: postmock.exe",
+            "",
+            "Requirements",
+            "------------",
+            "- Windows 10 or later (64-bit)",
+            "- WebView2 Runtime (usually pre-installed on Windows 11)",
+            "",
+            "Data Storage",
+            "------------",
+            "Application data is stored in %APPDATA%\postmock\",
+            "",
+            "For more information, visit",
+            "https://github.com/duwei0227/postmock"
+          )
+          $readmeContent -join "`r`n" | Out-File -FilePath "$PORTABLE_DIR/README-PORTABLE.txt" -Encoding UTF8
+          
+          # Create launcher batch file
+          $batchContent = @(
+            "@echo off",
+            "cd /d `"%~dp0`"",
+            "start `"`" postmock.exe %*"
+          )
+          $batchContent -join "`r`n" | Out-File -FilePath "$PORTABLE_DIR/postmock.bat" -Encoding ASCII
+          
+          # Create archive
+          Compress-Archive -Path $PORTABLE_DIR -DestinationPath "postmock-$VERSION-windows-x64-portable.zip" -Force
+          
+          Write-Host "Created: postmock-$VERSION-windows-x64-portable.zip"
+          Get-Item "postmock-$VERSION-windows-x64-portable.zip" | Format-List
+      
+      - name: Upload portable archive to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          files: |
+            postmock-*-portable.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: portable-${{ matrix.platform }}
+          path: postmock-*-portable.*
+
+  build-flatpak:
+    name: Build Flatpak
+    needs: build-tauri
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      
+      - name: Get version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building Flatpak for version: $VERSION"
+      
+      - name: Download AppImage from release
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          APPIMAGE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/postmock_${VERSION}_amd64.AppImage"
+          
+          echo "Downloading AppImage from: $APPIMAGE_URL"
+          
+          # Wait for AppImage to be available (max 5 minutes)
+          for i in {1..30}; do
+            if curl -f -L -o postmock.AppImage "$APPIMAGE_URL"; then
+              echo "AppImage downloaded successfully"
+              break
+            fi
+            echo "Waiting for AppImage to be available... (attempt $i/30)"
+            sleep 10
+          done
+          
+          if [ ! -f postmock.AppImage ]; then
+            echo "Failed to download AppImage"
+            exit 1
+          fi
+          
+          # Calculate SHA256
+          SHA256=$(sha256sum postmock.AppImage | awk '{print $1}')
+          echo "SHA256: $SHA256"
+          
+          # Update manifest with actual SHA256 and version
+          sed -i "s|REPLACE_WITH_ACTUAL_SHA256|$SHA256|g" cn.probiecoder.postmock.yml
+          sed -i "s|v0.1.0|v${VERSION}|g" cn.probiecoder.postmock.yml
+          sed -i "s|postmock_0.1.0_amd64.AppImage|postmock_${VERSION}_amd64.AppImage|g" cn.probiecoder.postmock.yml
+          
+          echo "Updated manifest:"
+          cat cn.probiecoder.postmock.yml
+      
+      - name: Install Flatpak and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
+      
+      - name: Build Flatpak
+        run: |
+          flatpak-builder --force-clean --repo=repo build-dir cn.probiecoder.postmock.yml
+          flatpak build-bundle repo postmock.flatpak cn.probiecoder.postmock
+          
+          echo "Flatpak bundle created successfully"
+          ls -lh postmock.flatpak
+      
+      - name: Upload Flatpak to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          files: postmock.flatpak
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: postmock.flatpak

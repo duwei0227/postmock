@@ -1,0 +1,14 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PostMock
+GenericName=API Testing Tool
+Comment=Modern API testing tool for developers
+Exec=postmock %U
+Icon=postmock
+Terminal=false
+Categories=Development;Network;WebDevelopment;
+Keywords=api;http;rest;testing;postman;development;
+MimeType=x-scheme-handler/postmock;
+StartupNotify=true
+StartupWMClass=PostMock

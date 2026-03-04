@@ -8,39 +8,68 @@
   <description>
     <p>
       PostMock is a modern, cross-platform API testing tool built with Tauri and Vue 3.
-      It provides a clean and intuitive interface for testing HTTP APIs.
+      It provides a clean and intuitive interface for testing HTTP APIs with powerful features
+      for developers and QA engineers.
     </p>
-    <p>Features:</p>
+    <p>Key Features:</p>
     <ul>
-      <li>HTTP request testing (GET, POST, PUT, DELETE, PATCH, etc.)</li>
-      <li>Collection and folder management</li>
-      <li>Environment variables support</li>
-      <li>Request history tracking</li>
-      <li>Automated testing with assertions</li>
-      <li>Dark mode support</li>
-      <li>cURL import</li>
-      <li>Collection import/export</li>
+      <li>HTTP request testing - Support for GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS methods</li>
+      <li>Collection and folder management - Organize your API requests efficiently</li>
+      <li>Environment variables - Manage multiple environments with variable substitution</li>
+      <li>Request history - Automatic tracking of all request history</li>
+      <li>Automated testing - Built-in test assertions and global variable extraction</li>
+      <li>Dark mode support - Switch between light and dark themes</li>
+      <li>Data persistence - Local file system storage for your data</li>
+      <li>Import/Export - Share collections with your team</li>
+      <li>cURL import - Quickly create requests from cURL commands</li>
+      <li>Code editor - Syntax highlighting for JSON, XML, and HTML</li>
     </ul>
+    <p>
+      PostMock is designed to be lightweight, fast, and easy to use, making it perfect for
+      API development, testing, and debugging workflows.
+    </p>
   </description>
   
   <launchable type="desktop-id">cn.probiecoder.postmock.desktop</launchable>
   
   <screenshots>
     <screenshot type="default">
-      <caption>Main interface</caption>
+      <caption>Main interface showing HTTP request testing</caption>
       <image>https://raw.githubusercontent.com/duwei0227/postmock/main/screenshots/main.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Collection management</caption>
+      <image>https://raw.githubusercontent.com/duwei0227/postmock/main/screenshots/collections.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Environment variables configuration</caption>
+      <image>https://raw.githubusercontent.com/duwei0227/postmock/main/screenshots/environment.png</image>
     </screenshot>
   </screenshots>
   
   <url type="homepage">https://github.com/duwei0227/postmock</url>
   <url type="bugtracker">https://github.com/duwei0227/postmock/issues</url>
+  <url type="help">https://github.com/duwei0227/postmock#使用指南</url>
+  <url type="vcs-browser">https://github.com/duwei0227/postmock</url>
   
   <developer_name>duwei0227</developer_name>
+  <update_contact>duwei0227@github.com</update_contact>
   
   <releases>
     <release version="0.1.0" date="2024-03-04">
       <description>
-        <p>Initial release</p>
+        <p>Initial release of PostMock</p>
+        <ul>
+          <li>HTTP request testing with multiple methods support</li>
+          <li>Collection and folder management</li>
+          <li>Environment variables with substitution</li>
+          <li>Request history tracking</li>
+          <li>Automated testing with assertions</li>
+          <li>Dark mode support</li>
+          <li>cURL command import</li>
+          <li>Collection import/export functionality</li>
+          <li>Code editor with syntax highlighting</li>
+        </ul>
       </description>
     </release>
   </releases>
@@ -48,4 +77,23 @@
   <content_rating type="oars-1.1">
     <content_attribute id="social-info">moderate</content_attribute>
   </content_rating>
+  
+  <categories>
+    <category>Development</category>
+    <category>Network</category>
+  </categories>
+  
+  <keywords>
+    <keyword>api</keyword>
+    <keyword>http</keyword>
+    <keyword>rest</keyword>
+    <keyword>testing</keyword>
+    <keyword>postman</keyword>
+    <keyword>development</keyword>
+    <keyword>network</keyword>
+  </keywords>
+  
+  <provides>
+    <binary>postmock</binary>
+  </provides>
 </component>

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "postmock",
+  "productName": "PostMock",
   "version": "0.1.0",
   "identifier": "cn.probiecoder.postmock",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "postmock",
+        "title": "PostMock",
         "width": 1280,
         "height": 800,
         "decorations": false,
@@ -33,12 +33,84 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "publisher": "duwei0227",
+    "copyright": "Copyright © 2024 duwei0227. All rights reserved.",
+    "category": "DeveloperTool",
+    "shortDescription": "Modern API testing tool",
+    "longDescription": "PostMock is a modern, cross-platform API testing tool built with Tauri and Vue 3. It provides a clean and intuitive interface for testing HTTP APIs with features like collection management, environment variables, request history, and automated testing.",
+    "homepage": "https://github.com/duwei0227/postmock",
+    "licenseFile": "../LICENSE",
+    "resources": [],
+    "externalBin": [],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "wix": {
+        "language": ["en-US", "zh-CN"],
+        "template": null,
+        "fragmentPaths": [],
+        "componentRefs": [],
+        "featureGroupRefs": [],
+        "featureRefs": [],
+        "mergeRefs": [],
+        "skipWebviewInstall": false,
+        "license": "../LICENSE",
+        "enableElevatedUpdateTask": false,
+        "bannerPath": null,
+        "dialogImagePath": null
+      },
+      "nsis": {
+        "license": "../LICENSE",
+        "headerImage": null,
+        "sidebarImage": null,
+        "installerIcon": null,
+        "installMode": "currentUser",
+        "languages": ["English", "SimpChinese"],
+        "displayLanguageSelector": true,
+        "compression": "lzma"
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.13",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": null,
+      "dmg": {
+        "background": null,
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        }
+      }
+    },
     "linux": {
       "deb": {
-        "depends": []
+        "depends": [],
+        "section": "Development",
+        "priority": "optional",
+        "files": {}
       },
       "rpm": {
-        "depends": []
+        "depends": [],
+        "release": "1",
+        "epoch": 0,
+        "files": {},
+        "desktopTemplate": null
+      },
+      "appimage": {
+        "bundleMediaFramework": false,
+        "files": {}
       }
     }
   }
