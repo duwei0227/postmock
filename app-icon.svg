@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Main gradient - Purple to Blue -->
+    <linearGradient id="mainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Arrow gradient - Purple to Green -->
+    <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#8b5cf6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Shadow -->
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <!-- Main icon group - centered -->
+  <g transform="translate(512, 512)">
+    
+    <!-- Request label (left) - centered at x=-350, which is 162px from left edge (512-350=162) -->
+    <text x="-350" y="-100" font-family="Arial, sans-serif" font-size="56" font-weight="bold" fill="#667eea" text-anchor="middle">Request</text>
+    
+    <!-- Mock label (right) - centered at x=350, which is 162px from right edge (1024-512-350=162) -->
+    <text x="350" y="-100" font-family="Arial, sans-serif" font-size="56" font-weight="bold" fill="#10b981" text-anchor="middle">Mock</text>
+    
+    <!-- Through arrow (from left to right, passing through API) -->
+    <g filter="url(#shadow)">
+      <!-- Arrow shaft: left side rounded, right side square -->
+      <path d="M -420 -30 
+               L 430 -30 
+               L 430 30 
+               L -420 30 
+               Q -450 30 -450 0 
+               Q -450 -30 -420 -30 Z" 
+            fill="url(#arrowGradient)"/>
+      <!-- Arrow head (triangle starting at x=430) -->
+      <path d="M 430 -60 L 500 0 L 430 60 Z" fill="#10b981"/>
+    </g>
+    
+    <!-- Central API circle (on top of arrow) -->
+    <circle cx="0" cy="0" r="160" fill="url(#mainGradient)" filter="url(#shadow)"/>
+    
+    <!-- Inner circle for depth -->
+    <circle cx="0" cy="0" r="120" fill="#ffffff" opacity="0.15"/>
+    
+    <!-- API text in center -->
+    <text x="0" y="30" font-family="Arial, sans-serif" font-size="110" font-weight="bold" fill="white" text-anchor="middle">API</text>
+    
+  </g>
+  
+</svg>
