@@ -24,9 +24,166 @@ const emit = defineEmits(['update:modelValue', 'input']);
 
 const inputRef = ref(null);
 const showSuggestions = ref(false);
+const showParameterHint = ref(false);
+const parameterHintContent = ref('');
 const cursorPosition = ref(0);
 const currentVariablePrefix = ref('');
 const selectedSuggestionIndex = ref(0); // 当前选中的建议索引
+
+// 参数提示信息
+const parameterHints = {
+  '$sequence': {
+    title: '$sequence Parameters',
+    description: 'Auto-increment sequence with customizable settings',
+    examples: [
+      { syntax: '$sequence', desc: 'Default: start=1, step=1' },
+      { syntax: '$sequence(100)', desc: 'Start from 100' },
+      { syntax: '$sequence(start=100)', desc: 'Named param: start value' },
+      { syntax: '$sequence(step=10)', desc: 'Named param: step value' },
+      { syntax: '$sequence(padding=5)', desc: 'Named param: zero padding' },
+      { syntax: '$sequence(name=order)', desc: 'Named param: sequence name' },
+      { syntax: '$sequence(name=order, start=1000, step=10)', desc: 'Multiple params' }
+    ],
+    params: [
+      { name: 'name', type: 'string', default: '"default"', desc: 'Sequence name' },
+      { name: 'padding', type: 'number', default: '0', desc: 'Zero padding digits' },
+      { name: 'start', type: 'number', default: '1', desc: 'Starting value' },
+      { name: 'step', type: 'number', default: '1', desc: 'Increment step' }
+    ]
+  },
+  '$randomInt': {
+    title: '$randomInt Parameters',
+    description: 'Generate random integer within specified range',
+    examples: [
+      { syntax: '$randomInt', desc: 'Random 0-1000 (default)' },
+      { syntax: '$randomInt(1, 100)', desc: 'Random between 1 and 100' },
+      { syntax: '$randomInt(min=1, max=100)', desc: 'Named params: min and max' },
+      { syntax: '$randomInt(start=50, end=150)', desc: 'Named params: start and end' }
+    ],
+    params: [
+      { name: 'start / min', type: 'number', default: '0', desc: 'Minimum value (inclusive)' },
+      { name: 'end / max', type: 'number', default: '1000', desc: 'Maximum value (inclusive)' }
+    ]
+  },
+  '$date': {
+    title: '$date Parameters',
+    description: 'Current date with custom format',
+    examples: [
+      { syntax: '$date', desc: 'Default: yyyy-MM-dd' },
+      { syntax: '$date("yyyy/MM/dd")', desc: 'Custom format with slashes' },
+      { syntax: '$date("yyyyMMdd")', desc: 'Compact format' },
+      { syntax: '$date(format="yyyy-MM-dd")', desc: 'Named param: format' },
+      { syntax: '$date(fmt="dd/MM/yyyy")', desc: 'Named param: fmt (alias)' }
+    ],
+    params: [
+      { name: 'format / fmt', type: 'string', default: '"yyyy-MM-dd"', desc: 'Date format (yyyy=year, MM=month, dd=day)' }
+    ]
+  },
+  '$time': {
+    title: '$time Parameters',
+    description: 'Current time with custom format',
+    examples: [
+      { syntax: '$time', desc: 'Default: HH:mm:ss' },
+      { syntax: '$time("HH:mm")', desc: 'Hours and minutes only' },
+      { syntax: '$time(format="HH:mm:ss")', desc: 'Named param: format' },
+      { syntax: '$time(fmt="HHmmss")', desc: 'Compact time format' }
+    ],
+    params: [
+      { name: 'format / fmt', type: 'string', default: '"HH:mm:ss"', desc: 'Time format (HH=hours, mm=minutes, ss=seconds)' }
+    ]
+  },
+  '$datetime': {
+    title: '$datetime Parameters',
+    description: 'Current datetime with custom format',
+    examples: [
+      { syntax: '$datetime', desc: 'Default: yyyy-MM-dd HH:mm:ss' },
+      { syntax: '$datetime("yyyy-MM-dd HH:mm")', desc: 'Without seconds' },
+      { syntax: '$datetime(format="yyyyMMdd_HHmmss")', desc: 'Compact with underscore' },
+      { syntax: '$datetime(fmt="yyyy/MM/dd HH:mm")', desc: 'Custom format' }
+    ],
+    params: [
+      { name: 'format / fmt', type: 'string', default: '"yyyy-MM-dd HH:mm:ss"', desc: 'Datetime format' }
+    ]
+  },
+  '$randomAlpha': {
+    title: '$randomAlpha Parameters',
+    description: 'Generate random letters (mixed case)',
+    examples: [
+      { syntax: '$randomAlpha', desc: 'Default: 10 letters' },
+      { syntax: '$randomAlpha(20)', desc: '20 random letters' },
+      { syntax: '$randomAlpha(length=15)', desc: 'Named param: length' },
+      { syntax: '$randomAlpha(len=8)', desc: 'Named param: len (alias)' }
+    ],
+    params: [
+      { name: 'length / len', type: 'number', default: '10', desc: 'String length' }
+    ]
+  },
+  '$randomNumeric': {
+    title: '$randomNumeric Parameters',
+    description: 'Generate random digits',
+    examples: [
+      { syntax: '$randomNumeric', desc: 'Default: 10 digits' },
+      { syntax: '$randomNumeric(6)', desc: '6 random digits' },
+      { syntax: '$randomNumeric(length=8)', desc: 'Named param: length' },
+      { syntax: '$randomNumeric(len=12)', desc: 'Named param: len (alias)' }
+    ],
+    params: [
+      { name: 'length / len', type: 'number', default: '10', desc: 'String length' }
+    ]
+  },
+  '$randomUppercase': {
+    title: '$randomUppercase Parameters',
+    description: 'Generate random uppercase letters',
+    examples: [
+      { syntax: '$randomUppercase', desc: 'Default: 10 uppercase letters' },
+      { syntax: '$randomUppercase(15)', desc: '15 uppercase letters' },
+      { syntax: '$randomUppercase(length=20)', desc: 'Named param: length' },
+      { syntax: '$randomUppercase(len=12)', desc: 'Named param: len (alias)' }
+    ],
+    params: [
+      { name: 'length / len', type: 'number', default: '10', desc: 'String length' }
+    ]
+  },
+  '$randomLowercase': {
+    title: '$randomLowercase Parameters',
+    description: 'Generate random lowercase letters',
+    examples: [
+      { syntax: '$randomLowercase', desc: 'Default: 10 lowercase letters' },
+      { syntax: '$randomLowercase(12)', desc: '12 lowercase letters' },
+      { syntax: '$randomLowercase(length=18)', desc: 'Named param: length' },
+      { syntax: '$randomLowercase(len=8)', desc: 'Named param: len (alias)' }
+    ],
+    params: [
+      { name: 'length / len', type: 'number', default: '10', desc: 'String length' }
+    ]
+  },
+  '$randomAlphanumeric': {
+    title: '$randomAlphanumeric Parameters',
+    description: 'Generate random letters and digits',
+    examples: [
+      { syntax: '$randomAlphanumeric', desc: 'Default: 10 characters' },
+      { syntax: '$randomAlphanumeric(16)', desc: '16 random characters' },
+      { syntax: '$randomAlphanumeric(length=32)', desc: 'Named param: length' },
+      { syntax: '$randomAlphanumeric(len=24)', desc: 'Named param: len (alias)' }
+    ],
+    params: [
+      { name: 'length / len', type: 'number', default: '10', desc: 'String length' }
+    ]
+  },
+  '$randomChinese': {
+    title: '$randomChinese Parameters',
+    description: 'Generate random Chinese characters with readable phrases',
+    examples: [
+      { syntax: '$randomChinese', desc: 'Default: 10 characters' },
+      { syntax: '$randomChinese(20)', desc: '20 Chinese characters' },
+      { syntax: '$randomChinese(length=15)', desc: 'Named param: length' },
+      { syntax: '$randomChinese(len=25)', desc: 'Named param: len (alias)' }
+    ],
+    params: [
+      { name: 'length / len', type: 'number', default: '10', desc: 'String length' }
+    ]
+  }
+};
 
 const variableSuggestions = computed(() => {
   console.log('VariableInput - currentVariablePrefix:', currentVariablePrefix.value);
@@ -36,18 +193,18 @@ const variableSuggestions = computed(() => {
   const builtInVariableSyntax = {
     '$timestamp': 'Current timestamp in milliseconds',
     '$isoTimestamp': 'Current ISO 8601 timestamp',
-    '$randomInt': '$randomInt or $randomInt(start, end) - Random integer (default: 0-1000)',
+    '$randomInt': '$randomInt, $randomInt(start, end), or $randomInt(min=0, max=100) - Random integer',
     '$guid': 'Random UUID/GUID',
-    '$date': '$date or $date("format") - Current date (default: yyyy-MM-dd)',
-    '$time': '$time or $time("format") - Current time (default: HH:mm:ss)',
-    '$datetime': '$datetime or $datetime("format") - Current datetime (default: yyyy-MM-dd HH:mm:ss)',
-    '$randomString': '$randomString or $randomString(length, "type") - Random string (deprecated, use specific types)',
-    '$randomAlpha': '$randomAlpha or $randomAlpha(length) - Random letters (default: 10 chars, mixed case)',
-    '$randomNumeric': '$randomNumeric or $randomNumeric(length) - Random digits (default: 10 chars)',
-    '$randomUppercase': '$randomUppercase or $randomUppercase(length) - Random uppercase letters (default: 10 chars)',
-    '$randomLowercase': '$randomLowercase or $randomLowercase(length) - Random lowercase letters (default: 10 chars)',
-    '$randomAlphanumeric': '$randomAlphanumeric or $randomAlphanumeric(length) - Random letters and digits (default: 10 chars)',
-    '$randomChinese': '$randomChinese or $randomChinese(length) - Random Chinese characters (default: 10 chars)'
+    '$date': '$date, $date("format"), or $date(format="yyyy-MM-dd") - Current date',
+    '$time': '$time, $time("format"), or $time(format="HH:mm:ss") - Current time',
+    '$datetime': '$datetime, $datetime("format"), or $datetime(format="yyyy-MM-dd HH:mm:ss") - Current datetime',
+    '$randomAlpha': '$randomAlpha, $randomAlpha(length), or $randomAlpha(length=10) - Random letters',
+    '$randomNumeric': '$randomNumeric, $randomNumeric(length), or $randomNumeric(length=10) - Random digits',
+    '$randomUppercase': '$randomUppercase, $randomUppercase(length), or $randomUppercase(length=10) - Random uppercase',
+    '$randomLowercase': '$randomLowercase, $randomLowercase(length), or $randomLowercase(length=10) - Random lowercase',
+    '$randomAlphanumeric': '$randomAlphanumeric, $randomAlphanumeric(length), or $randomAlphanumeric(length=10) - Random letters and digits',
+    '$randomChinese': '$randomChinese, $randomChinese(length), or $randomChinese(length=10) - Random Chinese characters',
+    '$sequence': '$sequence, $sequence(100), $sequence(start=100), $sequence(step=10), or $sequence(name=myseq, start=100, step=10) - Auto-increment'
   };
   
   if (!currentVariablePrefix.value) {
@@ -148,10 +305,30 @@ const checkForVariableTrigger = (value, position) => {
   if (lastOpenBrace !== -1 && lastOpenBrace > lastCloseBrace) {
     const variableText = beforeCursor.substring(lastOpenBrace + 2);
     currentVariablePrefix.value = variableText;
-    showSuggestions.value = true;
+    
+    // 检查是否正在输入函数参数（包含左括号）
+    const functionMatch = variableText.match(/^(\$\w+)\s*\(/);
+    if (functionMatch) {
+      const funcName = functionMatch[1];
+      if (parameterHints[funcName]) {
+        // 显示参数提示
+        showParameterHint.value = true;
+        parameterHintContent.value = funcName;
+        showSuggestions.value = false;
+      } else {
+        showParameterHint.value = false;
+        showSuggestions.value = true;
+      }
+    } else {
+      // 显示变量建议
+      showParameterHint.value = false;
+      showSuggestions.value = true;
+    }
+    
     selectedSuggestionIndex.value = 0; // 重置选中索引
   } else {
     showSuggestions.value = false;
+    showParameterHint.value = false;
     currentVariablePrefix.value = '';
     selectedSuggestionIndex.value = 0;
   }
@@ -181,22 +358,23 @@ const selectVariable = (variable) => {
 const hideSuggestions = () => {
   setTimeout(() => {
     showSuggestions.value = false;
+    showParameterHint.value = false;
     selectedSuggestionIndex.value = 0;
   }, 200);
 };
 
 // 检查变量是否存在
 const checkVariableExists = (varName) => {
+  // 检查是否是 $sequence 函数调用格式
+  const sequenceMatch = varName.match(/^\$sequence(?:\s*\(\s*[^)]*\s*\))?$/);
+  if (sequenceMatch) {
+    return true; // $sequence 或 $sequence(...) 格式是有效的
+  }
+  
   // 检查是否是 $randomInt 函数调用格式
   const randomIntMatch = varName.match(/^\$randomInt\s*\(\s*\d+\s*,\s*\d+\s*\)$/);
   if (randomIntMatch) {
     return true; // $randomInt(start, end) 格式是有效的
-  }
-  
-  // 检查是否是 $randomString 函数调用格式（保留向后兼容）
-  const randomStringMatch = varName.match(/^\$randomString\s*\(\s*\d+(?:\s*,\s*['"]([^'"]+)['"])?\s*\)$/);
-  if (randomStringMatch) {
-    return true; // $randomString(length) 或 $randomString(length, "type") 格式是有效的
   }
   
   // 检查是否是 $randomAlpha 函数调用格式
@@ -328,6 +506,74 @@ const hasInvalidVariables = computed(() => {
           <div v-if="variable.syntax" class="text-xs text-surface-600 dark:text-surface-400">
             {{ variable.syntax }}
           </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Parameter Hint Panel -->
+    <div
+      v-if="showParameterHint && parameterHints[parameterHintContent]"
+      class="absolute z-50 mt-1 bg-surface-0 dark:bg-surface-900 border border-primary-300 dark:border-primary-700 rounded shadow-lg p-4 min-w-96 max-w-2xl"
+      style="left: 0; right: auto;"
+    >
+      <div class="flex flex-col gap-3">
+        <!-- Title -->
+        <div class="flex items-center gap-2 border-b border-surface-200 dark:border-surface-700 pb-2">
+          <i class="pi pi-info-circle text-primary"></i>
+          <span class="font-semibold text-surface-900 dark:text-surface-50">
+            {{ parameterHints[parameterHintContent].title }}
+          </span>
+        </div>
+        
+        <!-- Description -->
+        <div v-if="parameterHints[parameterHintContent].description" class="text-sm text-surface-600 dark:text-surface-400">
+          {{ parameterHints[parameterHintContent].description }}
+        </div>
+        
+        <!-- Parameters Table -->
+        <div v-if="parameterHints[parameterHintContent].params" class="text-xs">
+          <div class="font-semibold text-surface-700 dark:text-surface-300 mb-2">Parameters:</div>
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-surface-200 dark:border-surface-700">
+                <th class="text-left py-1 px-2 text-surface-600 dark:text-surface-400">Name</th>
+                <th class="text-left py-1 px-2 text-surface-600 dark:text-surface-400">Type</th>
+                <th class="text-left py-1 px-2 text-surface-600 dark:text-surface-400">Default</th>
+                <th class="text-left py-1 px-2 text-surface-600 dark:text-surface-400">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr 
+                v-for="param in parameterHints[parameterHintContent].params" 
+                :key="param.name"
+                class="border-b border-surface-100 dark:border-surface-800"
+              >
+                <td class="py-1 px-2 font-mono text-primary">{{ param.name }}</td>
+                <td class="py-1 px-2 text-surface-500 dark:text-surface-400">{{ param.type }}</td>
+                <td class="py-1 px-2 font-mono text-surface-500 dark:text-surface-400">{{ param.default }}</td>
+                <td class="py-1 px-2 text-surface-600 dark:text-surface-400">{{ param.desc }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Examples -->
+        <div v-if="parameterHints[parameterHintContent].examples" class="text-xs">
+          <div class="font-semibold text-surface-700 dark:text-surface-300 mb-2">Examples:</div>
+          <div class="space-y-1">
+            <div 
+              v-for="(example, idx) in parameterHints[parameterHintContent].examples" 
+              :key="idx"
+              class="flex items-start gap-2 p-2 bg-surface-50 dark:bg-surface-800 rounded"
+            >
+              <code class="text-primary font-mono flex-shrink-0">{{ example.syntax }}</code>
+              <span class="text-surface-500 dark:text-surface-400">- {{ example.desc }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="text-xs text-surface-500 dark:text-surface-400 italic pt-2 border-t border-surface-200 dark:border-surface-700">
+          Press Esc to close this hint
         </div>
       </div>
     </div>

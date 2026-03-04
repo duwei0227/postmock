@@ -632,13 +632,25 @@ const sendRequest = async () => {
   
   try {
     // 构建完整的 URL（包含查询参数）- 替换变量
+    console.log('[HttpRequest] Original URL:', localRequest.value.url);
     let url = replaceVariables(localRequest.value.url);
+    console.log('[HttpRequest] URL after variable replacement:', url);
+    
     const enabledParams = localRequest.value.params.filter(p => p.enabled && p.key);
+    console.log('[HttpRequest] Enabled params:', enabledParams);
+    
     if (enabledParams.length > 0) {
       const queryString = enabledParams
-        .map(p => `${encodeURIComponent(replaceVariables(p.key))}=${encodeURIComponent(replaceVariables(p.value))}`)
+        .map(p => {
+          const key = replaceVariables(p.key);
+          const value = replaceVariables(p.value);
+          console.log(`[HttpRequest] Param: ${p.key} -> ${key}, ${p.value} -> ${value}`);
+          return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+        })
         .join('&');
+      console.log('[HttpRequest] Query string:', queryString);
       url += (url.includes('?') ? '&' : '?') + queryString;
+      console.log('[HttpRequest] Final URL with params:', url);
     }
     
     consoleLog.url = url;

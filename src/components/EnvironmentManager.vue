@@ -2,9 +2,11 @@
 import { ref, computed, onMounted } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useEnvironmentsStore } from '@/stores/environments';
+import { useSequencesStore } from '@/stores/sequences';
 
 const confirm = useConfirm();
 const environmentsStore = useEnvironmentsStore();
+const sequencesStore = useSequencesStore();
 
 const showEnvDialog = ref(false);
 const envDialogMode = ref('list'); // 'list', 'add', 'edit'
@@ -14,6 +16,11 @@ const editingEnv = ref({
   variables: [{ key: '', value: '', enabled: true }]
 });
 const hoveredVariableIndex = ref(-1);
+
+// 序列管理相关
+const showSequenceDialog = ref(false);
+const editingSequence = ref(null);
+const showSequenceEditDialog = ref(false);
 
 // 使用 store 中的数据
 const currentEnvironment = computed({
@@ -33,6 +40,7 @@ const environmentOptions = computed(() => {
 // 加载环境数据
 onMounted(async () => {
   await environmentsStore.loadEnvironments();
+  await sequencesStore.loadSequences();
 });
 
 // 环境管理函数
@@ -195,6 +203,90 @@ const getEnvDialogTitle = () => {
   return 'Edit Environment';
 };
 
+// 序列管理函数
+const openSequenceDialog = () => {
+  showSequenceDialog.value = true;
+};
+
+const openEditSequence = (sequence) => {
+  editingSequence.value = {
+    name: sequence.name,
+    currentValue: sequence.currentValue,
+    step: sequence.step,
+    padding: sequence.padding
+  };
+  showSequenceEditDialog.value = true;
+};
+
+const saveSequence = async () => {
+  if (!editingSequence.value) return;
+  
+  try {
+    await sequencesStore.updateSequence(editingSequence.value.name, {
+      currentValue: editingSequence.value.currentValue,
+      step: editingSequence.value.step,
+      padding: editingSequence.value.padding
+    });
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'success',
+        summary: 'Success',
+        detail: 'Sequence updated successfully',
+        life: 2000
+      });
+    }
+    
+    showSequenceEditDialog.value = false;
+    editingSequence.value = null;
+  } catch (error) {
+    console.error('Failed to update sequence:', error);
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Failed to update sequence',
+        life: 3000
+      });
+    }
+  }
+};
+
+const deleteSequence = (sequenceName) => {
+  confirm.require({
+    message: `确定要删除序列 "${sequenceName}" 吗？`,
+    header: '确认删除',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: '删除',
+    rejectLabel: '取消',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      try {
+        await sequencesStore.deleteSequence(sequenceName);
+        
+        if (window.$toast) {
+          window.$toast.add({
+            severity: 'success',
+            summary: 'Success',
+            detail: 'Sequence deleted successfully',
+            life: 2000
+          });
+        }
+      } catch (error) {
+        console.error('Failed to delete sequence:', error);
+        if (window.$toast) {
+          window.$toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Failed to delete sequence',
+            life: 3000
+          });
+        }
+      }
+    }
+  });
+};
+
 // 获取当前环境的变量（用于替换请求中的变量）
 const getCurrentEnvironmentVariables = () => {
   if (!currentEnvironment.value) return {};
@@ -228,6 +320,41 @@ const formatDateTime = (date, format) => {
     .replace(/HH/g, hours)
     .replace(/mm/g, minutes)
     .replace(/ss/g, seconds);
+};
+
+// 通用参数解析函数：支持位置参数和命名参数
+const parseParameters = (varName, funcName) => {
+  const paramsMatch = varName.match(new RegExp(`^\\${funcName}\\s*\\(\\s*([^)]*)\\s*\\)$`));
+  if (!paramsMatch) {
+    return null;
+  }
+  
+  const paramsStr = paramsMatch[1].trim();
+  if (!paramsStr) {
+    return {}; // 空参数
+  }
+  
+  // 检查是否包含 = 号（命名参数）
+  if (paramsStr.includes('=')) {
+    // 命名参数格式
+    const result = {};
+    const paramPairs = paramsStr.split(',').map(p => p.trim()).filter(p => p);
+    
+    paramPairs.forEach(pair => {
+      const equalIndex = pair.indexOf('=');
+      if (equalIndex === -1) return;
+      
+      const key = pair.substring(0, equalIndex).trim();
+      const value = pair.substring(equalIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+      result[key.toLowerCase()] = value;
+    });
+    
+    return result;
+  } else {
+    // 位置参数格式
+    const params = paramsStr.split(',').map(p => p.trim().replace(/^['"]|['"]$/g, '')).filter(p => p);
+    return { _positional: params };
+  }
 };
 
 // 生成随机字符串的辅助函数
@@ -397,13 +524,13 @@ const getAllAvailableVariables = () => {
   // $date: 默认格式 yyyy-MM-dd，也可以使用 $date(format) 自定义格式
   // $time: 默认格式 HH:mm:ss，也可以使用 $time(format) 自定义格式
   // $datetime: 默认格式 yyyy-MM-dd HH:mm:ss，也可以使用 $datetime(format) 自定义格式
-  // $randomString: 默认长度 10，包含大小写字母和数字（已废弃，建议使用具体类型的变量）
   // $randomAlpha: 默认长度 10，仅字母（大小写混合），可以使用 $randomAlpha(length) 自定义
   // $randomNumeric: 默认长度 10，仅数字，可以使用 $randomNumeric(length) 自定义
   // $randomUppercase: 默认长度 10，仅大写字母，可以使用 $randomUppercase(length) 自定义
   // $randomLowercase: 默认长度 10，仅小写字母，可以使用 $randomLowercase(length) 自定义
   // $randomAlphanumeric: 默认长度 10，字母数字混合，可以使用 $randomAlphanumeric(length) 自定义
   // $randomChinese: 默认长度 10，生成随机中文字符，可以使用 $randomChinese(length) 自定义
+  // $sequence: 自增序列，可以使用 $sequence(name, padding, start, step) 自定义
   const builtInVars = {
     '$timestamp': Date.now().toString(),
     '$isoTimestamp': new Date().toISOString(),
@@ -412,13 +539,13 @@ const getAllAvailableVariables = () => {
     '$date': formatDateTime(now, 'yyyy-MM-dd'),
     '$time': formatDateTime(now, 'HH:mm:ss'),
     '$datetime': formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'),
-    '$randomString': generateRandomAlphanumeric(10), // 保留兼容性，默认为 alphanumeric
     '$randomAlpha': generateRandomAlpha(10),
     '$randomNumeric': generateRandomNumeric(10),
     '$randomUppercase': generateRandomUppercase(10),
     '$randomLowercase': generateRandomLowercase(10),
     '$randomAlphanumeric': generateRandomAlphanumeric(10),
     '$randomChinese': generateRandomChineseString(10),
+    '$sequence': '1', // 默认序列的示例值（仅用于提示，实际值由 replaceVariables 中的特殊逻辑生成）
   };
   
   return { ...envVars, ...builtInVars };
@@ -429,151 +556,332 @@ const replaceVariables = (str) => {
   if (!str || typeof str !== 'string') return str;
   
   const allVars = getAllAvailableVariables();
-  console.log('[EnvironmentManager] replaceVariables called');
+  console.log('[EnvironmentManager] ========== replaceVariables START ==========');
   console.log('[EnvironmentManager] Input string:', str);
-  console.log('[EnvironmentManager] Available variables:', allVars);
+  console.log('[EnvironmentManager] Input string length:', str.length);
+  console.log('[EnvironmentManager] Input string charCodes:', Array.from(str).map(c => c.charCodeAt(0)).join(','));
+  console.log('[EnvironmentManager] Available variables:', Object.keys(allVars));
+  console.log('[EnvironmentManager] Sequences store loaded:', sequencesStore.getAllSequences().length, 'sequences');
   
   const result = str.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
     const trimmedVarName = varName.trim();
+    console.log(`[EnvironmentManager] Processing variable: "${trimmedVarName}" from match: "${match}"`);
+    
+    // 检查是否是 $sequence 函数调用
+    // 支持格式: 
+    // - $sequence: 默认值
+    // - $sequence(100): 只指定起始值（纯数字）
+    // - $sequence(name): 指定名称
+    // - $sequence(name, padding, start, step): 位置参数
+    // - $sequence(start=100): 命名参数，只指定起始值
+    // - $sequence(step=10): 命名参数，只指定步长
+    // - $sequence(name=myseq, start=100, step=10): 多个命名参数
+    if (trimmedVarName === '$sequence' || trimmedVarName.startsWith('$sequence(')) {
+      console.log(`[EnvironmentManager] Detected $sequence variable: "${trimmedVarName}"`);
+      
+      let name = 'default';
+      let padding = 0;
+      let startValue = 1;
+      let step = 1;
+      
+      // 提取括号内的参数
+      const paramsMatch = trimmedVarName.match(/^\$sequence\s*\(\s*([^)]*)\s*\)$/);
+      if (paramsMatch) {
+        const paramsStr = paramsMatch[1].trim();
+        console.log(`[EnvironmentManager] Params string: "${paramsStr}"`);
+        
+        // 检查是否包含 = 号（命名参数）
+        if (paramsStr.includes('=')) {
+          // 命名参数格式：name=value, key=value
+          const paramPairs = paramsStr.split(',').map(p => p.trim()).filter(p => p);
+          console.log(`[EnvironmentManager] Param pairs:`, paramPairs);
+          
+          paramPairs.forEach(pair => {
+            console.log(`[EnvironmentManager] Processing pair: "${pair}"`);
+            const equalIndex = pair.indexOf('=');
+            if (equalIndex === -1) {
+              console.warn(`[EnvironmentManager] Invalid parameter format: ${pair}`);
+              return;
+            }
+            
+            const key = pair.substring(0, equalIndex).trim();
+            const value = pair.substring(equalIndex + 1).trim();
+            const cleanValue = value.replace(/^['"]|['"]$/g, ''); // 移除引号
+            
+            console.log(`[EnvironmentManager] Key: "${key}", Value: "${cleanValue}"`);
+            
+            switch (key.toLowerCase()) {
+              case 'name':
+                name = cleanValue;
+                console.log(`[EnvironmentManager] Set name to: ${name}`);
+                break;
+              case 'padding':
+              case 'pad':
+                padding = parseInt(cleanValue, 10) || 0;
+                console.log(`[EnvironmentManager] Set padding to: ${padding}`);
+                break;
+              case 'start':
+              case 'startvalue':
+                startValue = parseInt(cleanValue, 10) || 1;
+                console.log(`[EnvironmentManager] Set startValue to: ${startValue}`);
+                break;
+              case 'step':
+                step = parseInt(cleanValue, 10) || 1;
+                console.log(`[EnvironmentManager] Set step to: ${step}`);
+                break;
+              default:
+                console.warn(`[EnvironmentManager] Unknown parameter: ${key}`);
+            }
+          });
+        } else {
+          // 位置参数格式：按顺序解析
+          const params = paramsStr.split(',').map(p => p.trim().replace(/^['"]|['"]$/g, '')).filter(p => p);
+          console.log(`[EnvironmentManager] Position params:`, params);
+          
+          if (params.length > 0 && params[0]) {
+            // 检查第一个参数是否是纯数字（只指定起始值的情况）
+            if (/^\d+$/.test(params[0])) {
+              startValue = parseInt(params[0], 10);
+              console.log(`[EnvironmentManager] First param is number, set startValue to: ${startValue}`);
+            } else {
+              // 第一个参数不是纯数字，视为名称
+              name = params[0];
+              console.log(`[EnvironmentManager] First param is name: ${name}`);
+              if (params[1]) {
+                padding = parseInt(params[1], 10) || 0;
+                console.log(`[EnvironmentManager] Set padding to: ${padding}`);
+              }
+              if (params[2]) {
+                startValue = parseInt(params[2], 10) || 1;
+                console.log(`[EnvironmentManager] Set startValue to: ${startValue}`);
+              }
+              if (params[3]) {
+                step = parseInt(params[3], 10) || 1;
+                console.log(`[EnvironmentManager] Set step to: ${step}`);
+              }
+            }
+          }
+        }
+      } else if (trimmedVarName === '$sequence') {
+        // 无参数，使用默认值
+        console.log(`[EnvironmentManager] Using default sequence parameters`);
+      } else {
+        console.log(`[EnvironmentManager] Invalid $sequence syntax: "${trimmedVarName}", returning original match`);
+        return match;
+      }
+      
+      console.log(`[EnvironmentManager] Final sequence params - name: ${name}, padding: ${padding}, start: ${startValue}, step: ${step}`);
+      const sequenceValue = sequencesStore.getNextValue(name, padding, startValue, step);
+      console.log(`[EnvironmentManager] Replacing ${match} with sequence value: ${sequenceValue}`);
+      return sequenceValue;
+    }
     
     // 检查是否是 $randomInt 函数调用
-    const randomIntMatch = trimmedVarName.match(/^\$randomInt\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)$/);
-    if (randomIntMatch) {
-      const start = parseInt(randomIntMatch[1], 10);
-      const end = parseInt(randomIntMatch[2], 10);
+    // 支持格式: $randomInt, $randomInt(start, end), $randomInt(min=1, max=100)
+    if (trimmedVarName === '$randomInt' || trimmedVarName.startsWith('$randomInt(')) {
+      let start = 0;
+      let end = 1000;
+      
+      const params = parseParameters(trimmedVarName, '$randomInt');
+      if (params) {
+        if (params._positional) {
+          // 位置参数
+          if (params._positional[0]) start = parseInt(params._positional[0], 10);
+          if (params._positional[1]) end = parseInt(params._positional[1], 10);
+        } else {
+          // 命名参数
+          if (params.start || params.min) start = parseInt(params.start || params.min, 10) || 0;
+          if (params.end || params.max) end = parseInt(params.end || params.max, 10) || 1000;
+        }
+      }
+      
       const randomValue = Math.floor(Math.random() * (end - start + 1)) + start;
       console.log(`[EnvironmentManager] Replacing ${match} with random int between ${start} and ${end}: ${randomValue}`);
       return randomValue.toString();
     }
     
-    // 检查是否是 $randomString 函数调用（保留向后兼容）
-    // 支持格式: $randomString(length) 或 $randomString(length, "alpha") 或 $randomString(length, "numeric") 或 $randomString(length, "alphanumeric")
-    const randomStringMatch = trimmedVarName.match(/^\$randomString\s*\(\s*(\d+)(?:\s*,\s*['"]([^'"]+)['"])?\s*\)$/);
-    if (randomStringMatch) {
-      const length = parseInt(randomStringMatch[1], 10);
-      const type = randomStringMatch[2] || 'alphanumeric';
-      
-      let options = { alpha: false, numeric: false, uppercase: false, lowercase: false };
-      
-      switch (type.toLowerCase()) {
-        case 'alpha':
-          options.uppercase = true;
-          options.lowercase = true;
-          break;
-        case 'numeric':
-          options.numeric = true;
-          break;
-        case 'alphanumeric':
-          options.uppercase = true;
-          options.lowercase = true;
-          options.numeric = true;
-          break;
-        case 'uppercase':
-          options.uppercase = true;
-          break;
-        case 'lowercase':
-          options.lowercase = true;
-          break;
-        default:
-          // 默认使用 alphanumeric
-          options.uppercase = true;
-          options.lowercase = true;
-          options.numeric = true;
-      }
-      
-      const randomString = generateRandomString(length, options);
-      console.log(`[EnvironmentManager] Replacing ${match} with random string (length: ${length}, type: ${type}): ${randomString}`);
-      return randomString;
-    }
     
     // 检查是否是 $randomAlpha 函数调用
-    const randomAlphaMatch = trimmedVarName.match(/^\$randomAlpha\s*\(\s*(\d+)\s*\)$/);
-    if (randomAlphaMatch) {
-      const length = parseInt(randomAlphaMatch[1], 10);
+    // 支持格式: $randomAlpha, $randomAlpha(length), $randomAlpha(length=20)
+    if (trimmedVarName === '$randomAlpha' || trimmedVarName.startsWith('$randomAlpha(')) {
+      let length = 10;
+      
+      const params = parseParameters(trimmedVarName, '$randomAlpha');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          length = parseInt(params._positional[0], 10) || 10;
+        } else if (params.length || params.len) {
+          length = parseInt(params.length || params.len, 10) || 10;
+        }
+      }
+      
       const randomAlpha = generateRandomAlpha(length);
       console.log(`[EnvironmentManager] Replacing ${match} with random alpha (length: ${length}): ${randomAlpha}`);
       return randomAlpha;
     }
     
     // 检查是否是 $randomNumeric 函数调用
-    const randomNumericMatch = trimmedVarName.match(/^\$randomNumeric\s*\(\s*(\d+)\s*\)$/);
-    if (randomNumericMatch) {
-      const length = parseInt(randomNumericMatch[1], 10);
+    // 支持格式: $randomNumeric, $randomNumeric(length), $randomNumeric(length=6)
+    if (trimmedVarName === '$randomNumeric' || trimmedVarName.startsWith('$randomNumeric(')) {
+      let length = 10;
+      
+      const params = parseParameters(trimmedVarName, '$randomNumeric');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          length = parseInt(params._positional[0], 10) || 10;
+        } else if (params.length || params.len) {
+          length = parseInt(params.length || params.len, 10) || 10;
+        }
+      }
+      
       const randomNumeric = generateRandomNumeric(length);
       console.log(`[EnvironmentManager] Replacing ${match} with random numeric (length: ${length}): ${randomNumeric}`);
       return randomNumeric;
     }
     
     // 检查是否是 $randomUppercase 函数调用
-    const randomUppercaseMatch = trimmedVarName.match(/^\$randomUppercase\s*\(\s*(\d+)\s*\)$/);
-    if (randomUppercaseMatch) {
-      const length = parseInt(randomUppercaseMatch[1], 10);
+    // 支持格式: $randomUppercase, $randomUppercase(length), $randomUppercase(length=15)
+    if (trimmedVarName === '$randomUppercase' || trimmedVarName.startsWith('$randomUppercase(')) {
+      let length = 10;
+      
+      const params = parseParameters(trimmedVarName, '$randomUppercase');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          length = parseInt(params._positional[0], 10) || 10;
+        } else if (params.length || params.len) {
+          length = parseInt(params.length || params.len, 10) || 10;
+        }
+      }
+      
       const randomUppercase = generateRandomUppercase(length);
       console.log(`[EnvironmentManager] Replacing ${match} with random uppercase (length: ${length}): ${randomUppercase}`);
       return randomUppercase;
     }
     
     // 检查是否是 $randomLowercase 函数调用
-    const randomLowercaseMatch = trimmedVarName.match(/^\$randomLowercase\s*\(\s*(\d+)\s*\)$/);
-    if (randomLowercaseMatch) {
-      const length = parseInt(randomLowercaseMatch[1], 10);
+    // 支持格式: $randomLowercase, $randomLowercase(length), $randomLowercase(length=12)
+    if (trimmedVarName === '$randomLowercase' || trimmedVarName.startsWith('$randomLowercase(')) {
+      let length = 10;
+      
+      const params = parseParameters(trimmedVarName, '$randomLowercase');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          length = parseInt(params._positional[0], 10) || 10;
+        } else if (params.length || params.len) {
+          length = parseInt(params.length || params.len, 10) || 10;
+        }
+      }
+      
       const randomLowercase = generateRandomLowercase(length);
       console.log(`[EnvironmentManager] Replacing ${match} with random lowercase (length: ${length}): ${randomLowercase}`);
       return randomLowercase;
     }
     
     // 检查是否是 $randomAlphanumeric 函数调用
-    const randomAlphanumericMatch = trimmedVarName.match(/^\$randomAlphanumeric\s*\(\s*(\d+)\s*\)$/);
-    if (randomAlphanumericMatch) {
-      const length = parseInt(randomAlphanumericMatch[1], 10);
+    // 支持格式: $randomAlphanumeric, $randomAlphanumeric(length), $randomAlphanumeric(length=16)
+    if (trimmedVarName === '$randomAlphanumeric' || trimmedVarName.startsWith('$randomAlphanumeric(')) {
+      let length = 10;
+      
+      const params = parseParameters(trimmedVarName, '$randomAlphanumeric');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          length = parseInt(params._positional[0], 10) || 10;
+        } else if (params.length || params.len) {
+          length = parseInt(params.length || params.len, 10) || 10;
+        }
+      }
+      
       const randomAlphanumeric = generateRandomAlphanumeric(length);
       console.log(`[EnvironmentManager] Replacing ${match} with random alphanumeric (length: ${length}): ${randomAlphanumeric}`);
       return randomAlphanumeric;
     }
     
     // 检查是否是 $randomChinese 函数调用
-    const randomChineseMatch = trimmedVarName.match(/^\$randomChinese\s*\(\s*(\d+)\s*\)$/);
-    if (randomChineseMatch) {
-      const length = parseInt(randomChineseMatch[1], 10);
+    // 支持格式: $randomChinese, $randomChinese(length), $randomChinese(length=20)
+    if (trimmedVarName === '$randomChinese' || trimmedVarName.startsWith('$randomChinese(')) {
+      let length = 10;
+      
+      const params = parseParameters(trimmedVarName, '$randomChinese');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          length = parseInt(params._positional[0], 10) || 10;
+        } else if (params.length || params.len) {
+          length = parseInt(params.length || params.len, 10) || 10;
+        }
+      }
+      
       const randomChinese = generateRandomChineseString(length);
       console.log(`[EnvironmentManager] Replacing ${match} with random Chinese string (length: ${length}): ${randomChinese}`);
       return randomChinese;
     }
     
     // 检查是否是 $date 函数调用
-    const dateMatch = trimmedVarName.match(/^\$date\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
-    if (dateMatch) {
-      const format = dateMatch[1];
+    // 支持格式: $date, $date("format"), $date(format="yyyy/MM/dd")
+    if (trimmedVarName === '$date' || trimmedVarName.startsWith('$date(')) {
+      let format = 'yyyy-MM-dd';
+      
+      const params = parseParameters(trimmedVarName, '$date');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          format = params._positional[0];
+        } else if (params.format || params.fmt) {
+          format = params.format || params.fmt;
+        }
+      }
+      
       const formattedDate = formatDateTime(new Date(), format);
       console.log(`[EnvironmentManager] Replacing ${match} with formatted date: ${formattedDate}`);
       return formattedDate;
     }
     
     // 检查是否是 $time 函数调用
-    const timeMatch = trimmedVarName.match(/^\$time\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
-    if (timeMatch) {
-      const format = timeMatch[1];
+    // 支持格式: $time, $time("format"), $time(format="HH:mm")
+    if (trimmedVarName === '$time' || trimmedVarName.startsWith('$time(')) {
+      let format = 'HH:mm:ss';
+      
+      const params = parseParameters(trimmedVarName, '$time');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          format = params._positional[0];
+        } else if (params.format || params.fmt) {
+          format = params.format || params.fmt;
+        }
+      }
+      
       const formattedTime = formatDateTime(new Date(), format);
       console.log(`[EnvironmentManager] Replacing ${match} with formatted time: ${formattedTime}`);
       return formattedTime;
     }
     
     // 检查是否是 $datetime 函数调用
-    const datetimeMatch = trimmedVarName.match(/^\$datetime\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
-    if (datetimeMatch) {
-      const format = datetimeMatch[1];
+    // 支持格式: $datetime, $datetime("format"), $datetime(format="yyyy-MM-dd HH:mm")
+    if (trimmedVarName === '$datetime' || trimmedVarName.startsWith('$datetime(')) {
+      let format = 'yyyy-MM-dd HH:mm:ss';
+      
+      const params = parseParameters(trimmedVarName, '$datetime');
+      if (params) {
+        if (params._positional && params._positional[0]) {
+          format = params._positional[0];
+        } else if (params.format || params.fmt) {
+          format = params.format || params.fmt;
+        }
+      }
+      
       const formattedDatetime = formatDateTime(new Date(), format);
       console.log(`[EnvironmentManager] Replacing ${match} with formatted datetime: ${formattedDatetime}`);
       return formattedDatetime;
     }
     
     // 普通变量替换
+    // 注意：$sequence 已经在上面特殊处理了，不会到达这里
     const replacement = allVars[trimmedVarName] !== undefined ? allVars[trimmedVarName] : match;
-    console.log(`[EnvironmentManager] Replacing ${match} with ${replacement}`);
+    console.log(`[EnvironmentManager] Ordinary variable replacement: ${match} -> ${replacement}`);
     return replacement;
   });
   
   console.log('[EnvironmentManager] Result:', result);
+  console.log('[EnvironmentManager] Result length:', result.length);
+  console.log('[EnvironmentManager] ========== replaceVariables END ==========');
   return result;
 };
 
@@ -605,6 +913,15 @@ defineExpose({
       severity="secondary"
       title="Manage Environments"
       @click="openEnvDialog"
+    />
+    <Button 
+      icon="pi pi-sort-numeric-up"
+      text
+      rounded
+      size="small"
+      severity="secondary"
+      title="Manage Sequences"
+      @click="openSequenceDialog"
     />
     
     <!-- Environment Management Dialog -->
@@ -735,6 +1052,125 @@ defineExpose({
             @click="saveEnvironment"
             :disabled="!editingEnv.name.trim()"
           />
+        </div>
+      </template>
+    </Dialog>
+    
+    <!-- Sequence Management Dialog -->
+    <Dialog 
+      v-model:visible="showSequenceDialog"
+      header="Manage Sequences"
+      :modal="true"
+      :style="{ width: '700px' }"
+    >
+      <div class="flex flex-col gap-4">
+        <div v-if="sequencesStore.getAllSequences().length === 0" class="text-center py-8 text-surface-500 dark:text-surface-400 text-sm">
+          No sequences created yet. Sequences will be created automatically when you use {{$sequence}} in your requests.
+        </div>
+        
+        <div v-else class="space-y-2">
+          <div 
+            v-for="sequence in sequencesStore.getAllSequences()"
+            :key="sequence.name"
+            class="p-4 border border-surface-200 dark:border-surface-700 rounded hover:bg-surface-50 dark:hover:bg-surface-900 transition"
+          >
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="text-sm font-semibold text-surface-900 dark:text-surface-50">
+                    {{ sequence.name }}
+                  </span>
+                  <span class="text-xs px-2 py-1 rounded bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">
+                    Current: {{ sequence.padding > 0 ? sequence.currentValue.toString().padStart(sequence.padding, '0') : sequence.currentValue }}
+                  </span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-xs text-surface-600 dark:text-surface-400">
+                  <div>Start: {{ sequence.startValue }}</div>
+                  <div>Step: {{ sequence.step }}</div>
+                  <div>Padding: {{ sequence.padding || 'None' }}</div>
+                </div>
+              </div>
+              <div class="flex gap-1">
+                <Button 
+                  icon="pi pi-pencil"
+                  text
+                  rounded
+                  size="small"
+                  severity="secondary"
+                  @click="openEditSequence(sequence)"
+                />
+                <Button 
+                  icon="pi pi-trash"
+                  text
+                  rounded
+                  size="small"
+                  severity="danger"
+                  @click="deleteSequence(sequence.name)"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <Button label="Close" @click="showSequenceDialog = false" />
+      </template>
+    </Dialog>
+    
+    <!-- Sequence Edit Dialog -->
+    <Dialog 
+      v-model:visible="showSequenceEditDialog"
+      header="Edit Sequence"
+      :modal="true"
+      :style="{ width: '400px' }"
+    >
+      <div v-if="editingSequence" class="flex flex-col gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-2">Sequence Name</label>
+          <InputText 
+            :modelValue="editingSequence.name"
+            disabled
+            class="w-full"
+          />
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">Current Value</label>
+          <InputNumber 
+            v-model="editingSequence.currentValue"
+            class="w-full"
+            :min="0"
+          />
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">Step (Increment)</label>
+          <InputNumber 
+            v-model="editingSequence.step"
+            class="w-full"
+            :min="1"
+          />
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium mb-2">Padding (Zero Fill)</label>
+          <InputNumber 
+            v-model="editingSequence.padding"
+            class="w-full"
+            :min="0"
+            :max="10"
+          />
+          <small class="text-surface-500 dark:text-surface-400">
+            Number of digits (0 = no padding)
+          </small>
+        </div>
+      </div>
+      
+      <template #footer>
+        <div class="flex gap-2">
+          <Button label="Cancel" severity="secondary" @click="showSequenceEditDialog = false" />
+          <Button label="Save" @click="saveSequence" />
         </div>
       </template>
     </Dialog>
