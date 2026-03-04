@@ -41,7 +41,8 @@ const variableSuggestions = computed(() => {
     '$date': '$date or $date("format") - Current date (default: yyyy-MM-dd)',
     '$time': '$time or $time("format") - Current time (default: HH:mm:ss)',
     '$datetime': '$datetime or $datetime("format") - Current datetime (default: yyyy-MM-dd HH:mm:ss)',
-    '$randomString': '$randomString or $randomString(length, "type") - Random string (default: 10 chars, alphanumeric). Types: alpha, numeric, alphanumeric, uppercase, lowercase'
+    '$randomString': '$randomString or $randomString(length, "type") - Random string (default: 10 chars, alphanumeric). Types: alpha, numeric, alphanumeric, uppercase, lowercase',
+    '$randomChinese': '$randomChinese or $randomChinese(length) - Random Chinese characters (default: 10 chars)'
   };
   
   if (!currentVariablePrefix.value) {
@@ -191,6 +192,12 @@ const checkVariableExists = (varName) => {
   const randomStringMatch = varName.match(/^\$randomString\s*\(\s*\d+(?:\s*,\s*['"]([^'"]+)['"])?\s*\)$/);
   if (randomStringMatch) {
     return true; // $randomString(length) 或 $randomString(length, "type") 格式是有效的
+  }
+  
+  // 检查是否是 $randomChinese 函数调用格式
+  const randomChineseMatch = varName.match(/^\$randomChinese\s*\(\s*\d+\s*\)$/);
+  if (randomChineseMatch) {
+    return true; // $randomChinese(length) 格式是有效的
   }
   
   // 检查是否是 $date 函数调用格式
