@@ -29,7 +29,13 @@
 
 - **Windows**: `.msi` 或 `.exe`
 - **macOS**: `.dmg`
-- **Linux**: `.AppImage` 或 `.deb`
+- **Linux**: `.AppImage`、`.deb`、`.rpm` 或 `.flatpak`
+
+或者通过 Flathub 安装（即将推出）：
+
+```bash
+flatpak install flathub cn.probiecoder.postmock
+```
 
 ## 开发环境设置
 

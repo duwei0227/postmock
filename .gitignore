@@ -70,3 +70,9 @@ debug.log
 # Note: Uncomment these if you don't want to track application data
 # .kiro/data/
 # .kiro/storage/
+
+# Flatpak build artifacts
+build-dir/
+.flatpak-builder/
+repo/
+*.flatpak

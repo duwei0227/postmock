@@ -11,6 +11,8 @@
 | 🍎 macOS | `.dmg` | 通用版本（Intel + Apple Silicon） |
 | 🐧 Linux | `.AppImage` | 便携版，无需安装 |
 | 🐧 Linux | `.deb` | Debian/Ubuntu 安装包 |
+| 🐧 Linux | `.rpm` | Fedora/RHEL/CentOS 安装包 |
+| 🐧 Linux | `.flatpak` | Flatpak 通用包 |
 
 ## ✨ 更新内容
 

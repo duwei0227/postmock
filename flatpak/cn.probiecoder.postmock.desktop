@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=PostMock
+Comment=Modern API testing tool
+Exec=postmock
+Icon=cn.probiecoder.postmock
+Terminal=false
+Type=Application
+Categories=Development;Network;
+Keywords=api;http;rest;testing;postman;
+StartupWMClass=postmock

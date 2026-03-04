@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>cn.probiecoder.postmock</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>PostMock</name>
+  <summary>Modern API testing tool</summary>
+  <description>
+    <p>
+      PostMock is a modern, cross-platform API testing tool built with Tauri and Vue 3.
+      It provides a clean and intuitive interface for testing HTTP APIs.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>HTTP request testing (GET, POST, PUT, DELETE, PATCH, etc.)</li>
+      <li>Collection and folder management</li>
+      <li>Environment variables support</li>
+      <li>Request history tracking</li>
+      <li>Automated testing with assertions</li>
+      <li>Dark mode support</li>
+      <li>cURL import</li>
+      <li>Collection import/export</li>
+    </ul>
+  </description>
+  
+  <launchable type="desktop-id">cn.probiecoder.postmock.desktop</launchable>
+  
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main interface</caption>
+      <image>https://raw.githubusercontent.com/duwei0227/postmock/main/screenshots/main.png</image>
+    </screenshot>
+  </screenshots>
+  
+  <url type="homepage">https://github.com/duwei0227/postmock</url>
+  <url type="bugtracker">https://github.com/duwei0227/postmock/issues</url>
+  
+  <developer_name>duwei0227</developer_name>
+  
+  <releases>
+    <release version="0.1.0" date="2024-03-04">
+      <description>
+        <p>Initial release</p>
+      </description>
+    </release>
+  </releases>
+  
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-info">moderate</content_attribute>
+  </content_rating>
+</component>

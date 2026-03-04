@@ -51,10 +51,13 @@ jobs:
       - name: Create release
         id: create-release
         uses: actions/github-script@v7
+        env:
+          PACKAGE_VERSION: ${{ env.PACKAGE_VERSION }}
         with:
           script: |
             const fs = require('fs');
             const changelog = fs.readFileSync('/tmp/changelog.txt', 'utf8');
+            const version = process.env.PACKAGE_VERSION;
             
             const releaseBody = `## 📦 下载安装
 
@@ -67,6 +70,20 @@ jobs:
 | 🍎 macOS | \`.dmg\` | 通用版本（Intel + Apple Silicon） |
 | 🐧 Linux | \`.AppImage\` | 便携版，无需安装 |
 | 🐧 Linux | \`.deb\` | Debian/Ubuntu 安装包 |
+| 🐧 Linux | \`.rpm\` | Fedora/RHEL/CentOS 安装包 |
+| 🐧 Linux | \`.flatpak\` | Flatpak 通用包 |
+
+### Flatpak 安装（推荐 Linux 用户）
+
+\`\`\`bash
+flatpak install cn.probiecoder.postmock.flatpak
+\`\`\`
+
+或从 Flathub 安装（即将推出）：
+
+\`\`\`bash
+flatpak install flathub cn.probiecoder.postmock
+\`\`\`
 
 ## ✨ 更新内容
 
@@ -79,8 +96,8 @@ ${changelog}
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: \`v\${process.env.PACKAGE_VERSION}\`,
-              name: \`PostMock v\${process.env.PACKAGE_VERSION}\`,
+              tag_name: `v${version}`,
+              name: `PostMock v${version}`,
               body: releaseBody,
               draft: false,
               prerelease: false,
@@ -124,7 +141,7 @@ ${changelog}
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
 
       - name: Install frontend dependencies
         run: npm ci
