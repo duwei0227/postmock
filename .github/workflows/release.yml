@@ -75,13 +75,13 @@ jobs:
 
 ### Flatpak 安装（推荐 Linux 用户）
 
-\`\`\`bash
+安装下载的 flatpak 文件：
+\`\`\`
 flatpak install cn.probiecoder.postmock.flatpak
 \`\`\`
 
 或从 Flathub 安装（即将推出）：
-
-\`\`\`bash
+\`\`\`
 flatpak install flathub cn.probiecoder.postmock
 \`\`\`
 
