@@ -207,9 +207,19 @@ const handleImportCurl = async (curlCommand) => {
 // Global keyboard shortcut handler
 const handleGlobalKeyDown = (event) => {
   // Ctrl+N or Cmd+N to open Create New modal
-  if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+  if ((event.ctrlKey || event.metaKey) && event.key === 'n' && !event.shiftKey) {
     event.preventDefault();
     showCreateNewModal.value = true;
+  }
+  
+  // Ctrl+D or Cmd+D to duplicate selected item in Collections
+  // CollectionsPanel has its own handler, so we don't need to do anything here
+  // The event will bubble up to CollectionsPanel's global listener
+  
+  // Ctrl+Shift+D or Cmd+Shift+D to toggle theme
+  if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'D') {
+    event.preventDefault();
+    handleToggleTheme();
   }
 };
 
@@ -227,6 +237,19 @@ const handleCreate = (type) => {
     if (mainContentRef.value?.environmentManagerRef) {
       mainContentRef.value.environmentManagerRef.openCreateDialog();
     }
+  }
+};
+
+// Handle toggle theme
+const handleToggleTheme = () => {
+  const isDark = document.documentElement.classList.contains('p-dark');
+  
+  if (isDark) {
+    document.documentElement.classList.remove('p-dark');
+    localStorage.setItem('theme', 'light');
+  } else {
+    document.documentElement.classList.add('p-dark');
+    localStorage.setItem('theme', 'dark');
   }
 };
 </script>
