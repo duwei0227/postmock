@@ -65,25 +65,21 @@ jobs:
 
 | 平台 | 文件类型 | 说明 |
 |------|---------|------|
-| 🪟 Windows | \`.msi\` | 推荐，安装程序 |
-| 🪟 Windows | \`.exe\` | 便携版 |
-| 🍎 macOS | \`.dmg\` | 通用版本（Intel + Apple Silicon） |
-| 🐧 Linux | \`.AppImage\` | 便携版，无需安装 |
-| 🐧 Linux | \`.deb\` | Debian/Ubuntu 安装包 |
-| 🐧 Linux | \`.rpm\` | Fedora/RHEL/CentOS 安装包 |
-| 🐧 Linux | \`.flatpak\` | Flatpak 通用包 |
+| 🪟 Windows | .msi | 推荐，安装程序 |
+| 🪟 Windows | .exe | 便携版 |
+| 🍎 macOS | .dmg | 通用版本（Intel + Apple Silicon） |
+| 🐧 Linux | .AppImage | 便携版，无需安装 |
+| 🐧 Linux | .deb | Debian/Ubuntu 安装包 |
+| 🐧 Linux | .rpm | Fedora/RHEL/CentOS 安装包 |
+| 🐧 Linux | .flatpak | Flatpak 通用包 |
 
 ### Flatpak 安装（推荐 Linux 用户）
 
-安装下载的 flatpak 文件：
-\`\`\`
-flatpak install cn.probiecoder.postmock.flatpak
-\`\`\`
+下载 .flatpak 文件后安装：
+> flatpak install cn.probiecoder.postmock.flatpak
 
 或从 Flathub 安装（即将推出）：
-\`\`\`
-flatpak install flathub cn.probiecoder.postmock
-\`\`\`
+> flatpak install flathub cn.probiecoder.postmock
 
 ## ✨ 更新内容
 
@@ -96,13 +92,14 @@ ${changelog}
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: `v${version}`,
-              name: `PostMock v${version}`,
+              tag_name: \`v\${version}\`,
+              name: \`PostMock v\${version}\`,
               body: releaseBody,
               draft: false,
               prerelease: false,
               generate_release_notes: true
             })
+            return data.id
             return data.id
 
   build-tauri:
