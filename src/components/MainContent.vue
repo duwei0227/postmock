@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useCollectionsStore } from '@/stores/collections';
 import { useRequestsStore } from '@/stores/requests';
 import { useAppStateStore } from '@/stores/appState';
@@ -27,6 +27,62 @@ const environmentManagerRef = ref(null);
 const historyPanelRef = ref(null);
 const collectionsPanelRef = ref(null);
 const requestWrapperRefs = ref({});
+
+// Sidebar resize state
+const INITIAL_SIDEBAR_WIDTH = 320; // 初始宽度 (w-80 = 320px)
+const COLLAPSE_THRESHOLD = INITIAL_SIDEBAR_WIDTH * 0.4; // 收起阈值：初始宽度的40%（缩小60%）= 128px
+const MIN_SIDEBAR_WIDTH = Math.max(COLLAPSE_THRESHOLD - 50, 100); // 最小宽度设置为收起阈值以下，确保能触发收起
+const sidebarWidth = ref(INITIAL_SIDEBAR_WIDTH);
+const sidebarCollapsed = ref(false);
+const isResizing = ref(false);
+const maxSidebarWidth = ref(800); // 默认最大宽度，会在 mounted 时计算
+
+// Calculate max sidebar width (40% of window width)
+const updateMaxSidebarWidth = () => {
+  maxSidebarWidth.value = Math.floor(window.innerWidth * 0.4);
+};
+
+// Handle sidebar resize
+const startResize = (event) => {
+  if (sidebarCollapsed.value) return;
+  isResizing.value = true;
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+};
+
+const handleResize = (event) => {
+  if (!isResizing.value) return;
+  
+  const newWidth = event.clientX;
+  
+  // 限制宽度范围
+  if (newWidth >= MIN_SIDEBAR_WIDTH && newWidth <= maxSidebarWidth.value) {
+    sidebarWidth.value = newWidth;
+    
+    // 检查是否需要自动收起
+    if (newWidth < COLLAPSE_THRESHOLD) {
+      sidebarCollapsed.value = true;
+      isResizing.value = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  }
+};
+
+const stopResize = () => {
+  isResizing.value = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+};
+
+// Toggle sidebar collapse
+const toggleSidebar = () => {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  if (!sidebarCollapsed.value) {
+    // 展开时恢复到初始宽度
+    sidebarWidth.value = INITIAL_SIDEBAR_WIDTH;
+  }
+};
 
 // Use store state
 const openRequests = computed(() => appStateStore.openRequests);
@@ -792,6 +848,14 @@ watch(activeRequestIndex, async (newIndex) => {
 onMounted(async () => {
   console.log('[MainContent] Component mounted, waiting for appState to load...');
   
+  // 计算最大侧边栏宽度
+  updateMaxSidebarWidth();
+  
+  // 监听窗口大小变化
+  window.addEventListener('resize', updateMaxSidebarWidth);
+  window.addEventListener('mousemove', handleResize);
+  window.addEventListener('mouseup', stopResize);
+  
   // 等待 appState 加载完成
   if (appStateStore.isLoading) {
     console.log('[MainContent] AppState is still loading, waiting...');
@@ -815,6 +879,13 @@ onMounted(async () => {
     await nextTick();
     await loadOpenRequests();
   }
+});
+
+// 清理事件监听器
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateMaxSidebarWidth);
+  window.removeEventListener('mousemove', handleResize);
+  window.removeEventListener('mouseup', stopResize);
 });
 
 // 加载打开的请求
@@ -894,8 +965,48 @@ defineExpose({
 
 <template>
   <div class="main-content flex-1 flex overflow-hidden">
+    <!-- Collapsed Sidebar Button -->
+    <div 
+      v-if="sidebarCollapsed"
+      class="collapsed-sidebar-button bg-surface-0 dark:bg-surface-950 border-r border-surface-200 dark:border-surface-700 flex flex-col items-center py-3 gap-2"
+    >
+      <Button
+        icon="pi pi-angle-right"
+        text
+        rounded
+        size="small"
+        severity="secondary"
+        title="展开侧边栏"
+        @click="toggleSidebar"
+      />
+      <Button
+        icon="pi pi-history"
+        text
+        rounded
+        size="small"
+        severity="secondary"
+        title="History"
+        :class="{ 'bg-primary-50 dark:bg-primary-900/20': activeTab === 0 }"
+        @click="activeTab = 0; toggleSidebar()"
+      />
+      <Button
+        icon="pi pi-folder"
+        text
+        rounded
+        size="small"
+        severity="secondary"
+        title="Collections"
+        :class="{ 'bg-primary-50 dark:bg-primary-900/20': activeTab === 1 }"
+        @click="activeTab = 1; toggleSidebar()"
+      />
+    </div>
+
     <!-- Sidebar -->
-    <aside class="w-80 bg-surface-0 dark:bg-surface-950 border-r border-surface-200 dark:border-surface-700 flex flex-col">
+    <aside 
+      v-if="!sidebarCollapsed"
+      class="sidebar bg-surface-0 dark:bg-surface-950 border-r border-surface-200 dark:border-surface-700 flex flex-col relative"
+      :style="{ width: sidebarWidth + 'px' }"
+    >
       <!-- Search Box -->
       <div class="p-3 border-b border-surface-200 dark:border-surface-700">
         <IconField iconPosition="left">
@@ -930,6 +1041,12 @@ defineExpose({
           />
         </TabPanel>
       </TabView>
+
+      <!-- Resize Handle -->
+      <div 
+        class="resize-handle"
+        @mousedown="startResize"
+      ></div>
     </aside>
     
     <!-- Request Editor -->
@@ -1067,5 +1184,42 @@ defineExpose({
 
 :deep(.sidebar-tabs .p-tabview-panel) {
   padding: 0;
+}
+
+/* Sidebar resize handle */
+.sidebar {
+  position: relative;
+}
+
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 0.2s;
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  background: var(--primary-color);
+}
+
+.resize-handle:active {
+  background: var(--primary-color);
+}
+
+/* Collapsed sidebar button */
+.collapsed-sidebar-button {
+  width: 48px;
+  flex-shrink: 0;
+}
+
+/* Prevent text selection during resize */
+body.resizing {
+  user-select: none;
+  cursor: col-resize;
 }
 </style>
