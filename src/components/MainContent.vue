@@ -91,6 +91,24 @@ const activeRequestIndex = computed({
   set: (value) => appStateStore.setActiveRequest(value)
 });
 
+// Get the active request object from the active HttpRequestWrapper component
+const activeRequest = computed(() => {
+  if (activeRequestIndex.value >= 0 && openRequests.value[activeRequestIndex.value]) {
+    const requestId = openRequests.value[activeRequestIndex.value];
+    const wrapperRef = requestWrapperRefs.value[requestId];
+    
+    // 从 HttpRequestWrapper 组件获取实时的 request 对象
+    if (wrapperRef && wrapperRef.request) {
+      // 如果是 ref，需要解包
+      const req = wrapperRef.request.__v_isRef ? wrapperRef.request.value : wrapperRef.request;
+      return req;
+    }
+    // 如果组件还没加载，从 store 获取
+    return requestsStore.requests.get(requestId) || null;
+  }
+  return null;
+});
+
 const toolbarMenuModel = ref([
   {
     label: 'Close All Tabs',
@@ -1104,7 +1122,10 @@ defineExpose({
             @click="showToolbarMenu"
           />
           
-          <EnvironmentManager ref="environmentManagerRef" />
+          <EnvironmentManager 
+            ref="environmentManagerRef" 
+            :currentRequest="activeRequest"
+          />
         </div>
       </div>
       

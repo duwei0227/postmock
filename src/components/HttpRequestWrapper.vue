@@ -419,7 +419,8 @@ defineExpose({
   hasUnsavedChanges,
   saveCurrentRequest,
   openSaveDialog,
-  restoreOriginalRequest
+  restoreOriginalRequest,
+  request // 暴露当前请求对象
 });
 
 // Debounced save function - 自动保存到缓存（不更新 collection）

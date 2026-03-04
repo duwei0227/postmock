@@ -4,6 +4,13 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useEnvironmentsStore } from '@/stores/environments';
 import { useSequencesStore } from '@/stores/sequences';
 
+const props = defineProps({
+  currentRequest: {
+    type: Object,
+    default: null
+  }
+});
+
 const confirm = useConfirm();
 const environmentsStore = useEnvironmentsStore();
 const sequencesStore = useSequencesStore();
@@ -21,6 +28,14 @@ const hoveredVariableIndex = ref(-1);
 const showSequenceDialog = ref(false);
 const editingSequence = ref(null);
 const showSequenceEditDialog = ref(false);
+
+// 变量查看相关
+const showVariablesViewDialog = ref(false);
+const currentRequestVariables = ref({
+  environment: [],
+  global: [],
+  sequences: []
+});
 
 // 使用 store 中的数据
 const currentEnvironment = computed({
@@ -285,6 +300,193 @@ const deleteSequence = (sequenceName) => {
       }
     }
   });
+};
+
+// 变量查看函数
+const openVariablesView = () => {
+  // 收集当前使用的变量信息
+  
+  // 1. Environment 变量
+  const envVars = [];
+  if (currentEnvironment.value) {
+    const env = environments.value.find(e => e.id === currentEnvironment.value);
+    if (env) {
+      env.variables.forEach(v => {
+        if (v.key && v.enabled !== false) {
+          envVars.push({
+            key: v.key,
+            value: v.value,
+            enabled: v.enabled !== false
+          });
+        }
+      });
+    }
+  }
+  
+  // 2. Tests 全局变量（从 localStorage 或其他地方获取）
+  const globalVars = [];
+  try {
+    const testsGlobals = localStorage.getItem('testsGlobalVariables');
+    if (testsGlobals) {
+      const parsed = JSON.parse(testsGlobals);
+      Object.entries(parsed).forEach(([key, value]) => {
+        globalVars.push({ key, value });
+      });
+    }
+  } catch (error) {
+    console.error('Failed to load tests global variables:', error);
+  }
+  
+  // 3. Sequence 变量 - 只显示当前请求中使用的
+  const sequences = [];
+  if (props.currentRequest) {
+    // 收集请求中所有可能包含变量的字段
+    const requestContent = [];
+    
+    // URL
+    if (props.currentRequest.url) {
+      requestContent.push(props.currentRequest.url);
+    }
+    
+    // Params
+    if (props.currentRequest.params && Array.isArray(props.currentRequest.params)) {
+      props.currentRequest.params.forEach(param => {
+        if (param.enabled && param.key) {
+          requestContent.push(param.key);
+          requestContent.push(param.value);
+        }
+      });
+    }
+    
+    // Headers
+    if (props.currentRequest.headers && Array.isArray(props.currentRequest.headers)) {
+      props.currentRequest.headers.forEach(header => {
+        if (header.enabled && header.key) {
+          requestContent.push(header.key);
+          requestContent.push(header.value);
+        }
+      });
+    }
+    
+    // Body
+    if (props.currentRequest.body) {
+      if (props.currentRequest.body.type === 'json' && props.currentRequest.body.raw) {
+        requestContent.push(props.currentRequest.body.raw);
+      } else if (props.currentRequest.body.type === 'x-www-form-urlencoded' && props.currentRequest.body.urlencoded) {
+        props.currentRequest.body.urlencoded.forEach(item => {
+          if (item.enabled && item.key) {
+            requestContent.push(item.key);
+            requestContent.push(item.value);
+          }
+        });
+      } else if (props.currentRequest.body.type === 'form-data' && props.currentRequest.body.formData) {
+        props.currentRequest.body.formData.forEach(item => {
+          if (item.enabled && item.key && item.type === 'text') {
+            requestContent.push(item.key);
+            requestContent.push(item.value);
+          }
+        });
+      }
+    }
+    
+    // 合并所有内容
+    const fullContent = requestContent.join(' ');
+    
+    // 查找所有 $sequence 引用
+    const sequenceRegex = /\{\{\s*\$sequence\s*(?:\(\s*([^)]*)\s*\))?\s*\}\}/g;
+    const usedSequenceNames = new Set();
+    let match;
+    
+    while ((match = sequenceRegex.exec(fullContent)) !== null) {
+      const params = match[1]; // 括号内的参数
+      
+      if (!params) {
+        // 没有参数，使用默认名称
+        usedSequenceNames.add('default');
+      } else {
+        // 解析参数
+        if (params.includes('=')) {
+          // 命名参数格式：name=value 或 name="value"
+          const nameMatch = params.match(/name\s*=\s*['"]?([^'",)]+)['"]?/);
+          
+          if (nameMatch) {
+            const seqName = nameMatch[1].trim();
+            usedSequenceNames.add(seqName);
+          } else {
+            // 如果没有 name 参数，使用 default
+            usedSequenceNames.add('default');
+          }
+        } else {
+          // 位置参数格式
+          const parts = params.split(',').map(p => p.trim().replace(/^['"]|['"]$/g, ''));
+          
+          if (parts[0]) {
+            // 检查第一个参数是否是纯数字
+            const isNumber = /^\d+$/.test(parts[0]);
+            
+            if (isNumber) {
+              // 纯数字，表示起始值，使用 default
+              usedSequenceNames.add('default');
+            } else {
+              // 不是纯数字，表示序列名称
+              usedSequenceNames.add(parts[0]);
+            }
+          } else {
+            usedSequenceNames.add('default');
+          }
+        }
+      }
+    }
+    
+    // 只添加被使用的序列
+    const allSequences = sequencesStore.getAllSequences();
+    usedSequenceNames.forEach(seqName => {
+      const existingSeq = allSequences.find(s => s.name === seqName);
+      
+      if (existingSeq) {
+        // 序列已存在于 store 中
+        sequences.push({
+          name: existingSeq.name,
+          currentValue: existingSeq.currentValue,
+          padding: existingSeq.padding,
+          step: existingSeq.step,
+          startValue: existingSeq.startValue,
+          displayValue: existingSeq.padding > 0 
+            ? existingSeq.currentValue.toString().padStart(existingSeq.padding, '0') 
+            : existingSeq.currentValue.toString(),
+          initialized: true
+        });
+      } else {
+        // 序列还未初始化（用户还没发送过请求）
+        sequences.push({
+          name: seqName,
+          currentValue: 1,
+          padding: 0,
+          step: 1,
+          startValue: 1,
+          displayValue: '1',
+          initialized: false
+        });
+      }
+    });
+  }
+  
+  console.log('[EnvironmentManager] Final sequences to display:', sequences);
+  currentRequestVariables.value = {
+    environment: envVars,
+    global: globalVars,
+    sequences: sequences
+  };
+  
+  showVariablesViewDialog.value = true;
+};
+
+const editSequenceFromView = (sequenceName) => {
+  const sequence = sequencesStore.getAllSequences().find(s => s.name === sequenceName);
+  if (sequence) {
+    showVariablesViewDialog.value = false;
+    openEditSequence(sequence);
+  }
 };
 
 // 获取当前环境的变量（用于替换请求中的变量）
@@ -915,6 +1117,15 @@ defineExpose({
       @click="openEnvDialog"
     />
     <Button 
+      icon="pi pi-eye"
+      text
+      rounded
+      size="small"
+      severity="secondary"
+      title="View Variables"
+      @click="openVariablesView"
+    />
+    <Button 
       icon="pi pi-sort-numeric-up"
       text
       rounded
@@ -1172,6 +1383,134 @@ defineExpose({
           <Button label="Cancel" severity="secondary" @click="showSequenceEditDialog = false" />
           <Button label="Save" @click="saveSequence" />
         </div>
+      </template>
+    </Dialog>
+    
+    <!-- Variables View Dialog -->
+    <Dialog 
+      v-model:visible="showVariablesViewDialog"
+      header="Current Request Variables"
+      :modal="true"
+      :style="{ width: '800px' }"
+    >
+      <div class="flex flex-col gap-6">
+        <!-- Environment Variables -->
+        <div>
+          <div class="flex items-center gap-2 mb-3 pb-2 border-b border-surface-200 dark:border-surface-700">
+            <i class="pi pi-database text-primary"></i>
+            <span class="font-semibold text-surface-900 dark:text-surface-50">
+              Environment Variables
+            </span>
+            <span v-if="currentEnvironment" class="text-xs px-2 py-1 rounded bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300">
+              {{ environments.find(e => e.id === currentEnvironment)?.name }}
+            </span>
+          </div>
+          
+          <div v-if="currentRequestVariables.environment.length === 0" class="text-sm text-surface-500 dark:text-surface-400 italic py-4">
+            No environment selected or no variables defined
+          </div>
+          
+          <div v-else class="space-y-2">
+            <div 
+              v-for="(variable, index) in currentRequestVariables.environment"
+              :key="index"
+              class="flex items-center gap-3 p-3 bg-surface-50 dark:bg-surface-800 rounded"
+            >
+              <div class="flex-1">
+                <div class="text-sm font-mono text-primary">{{ variable.key }}</div>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm text-surface-700 dark:text-surface-300 break-all">{{ variable.value }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Global Variables -->
+        <div>
+          <div class="flex items-center gap-2 mb-3 pb-2 border-b border-surface-200 dark:border-surface-700">
+            <i class="pi pi-code text-green-600"></i>
+            <span class="font-semibold text-surface-900 dark:text-surface-50">
+              Global Variables
+            </span>
+          </div>
+          
+          <div v-if="currentRequestVariables.global.length === 0" class="text-sm text-surface-500 dark:text-surface-400 italic py-4">
+            No global variables set
+          </div>
+          
+          <div v-else class="space-y-2">
+            <div 
+              v-for="(variable, index) in currentRequestVariables.global"
+              :key="index"
+              class="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded"
+            >
+              <div class="flex-1">
+                <div class="text-sm font-mono text-green-700 dark:text-green-400">{{ variable.key }}</div>
+              </div>
+              <div class="flex-1">
+                <div class="text-sm text-surface-700 dark:text-surface-300 break-all">{{ variable.value }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Sequence Variables -->
+        <div>
+          <div class="flex items-center gap-2 mb-3 pb-2 border-b border-surface-200 dark:border-surface-700">
+            <i class="pi pi-sort-numeric-up text-orange-600"></i>
+            <span class="font-semibold text-surface-900 dark:text-surface-50">
+              Sequence Variables
+            </span>
+          </div>
+          
+          <div v-if="currentRequestVariables.sequences.length === 0" class="text-sm text-surface-500 dark:text-surface-400 italic py-4">
+            No sequences used in current request
+          </div>
+          
+          <div v-else class="space-y-2">
+            <div 
+              v-for="(sequence, index) in currentRequestVariables.sequences"
+              :key="index"
+              class="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded group"
+            >
+              <div class="flex-1">
+                <div class="text-sm font-mono text-orange-700 dark:text-orange-400">
+                  $sequence(name={{ sequence.name }})
+                </div>
+              </div>
+              <div class="flex-1">
+                <div v-if="sequence.initialized" class="text-sm text-surface-700 dark:text-surface-300">
+                  Current: <span class="font-semibold">{{ sequence.displayValue }}</span>
+                  <span class="text-xs text-surface-500 dark:text-surface-400 ml-2">
+                    (step: {{ sequence.step }})
+                  </span>
+                </div>
+                <div v-else class="text-sm text-surface-500 dark:text-surface-400 italic">
+                  Not initialized yet
+                  <span class="text-xs ml-2">(will start at {{ sequence.startValue }})</span>
+                </div>
+              </div>
+              <div>
+                <Button 
+                  v-if="sequence.initialized"
+                  icon="pi pi-pencil"
+                  text
+                  rounded
+                  size="small"
+                  severity="secondary"
+                  class="opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Edit Sequence"
+                  @click="editSequenceFromView(sequence.name)"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <Button label="Close" @click="showVariablesViewDialog = false" />
       </template>
     </Dialog>
   </div>
