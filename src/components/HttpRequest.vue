@@ -962,6 +962,166 @@ const copyRawResponseBody = async () => {
   }
 };
 
+// 搜索相关
+const showSearchBox = ref(false);
+const searchQuery = ref('');
+const searchCaseSensitive = ref(false);
+const searchRegex = ref(false);
+const searchMatches = ref([]);
+const currentMatchIndex = ref(-1);
+
+const toggleSearchBox = () => {
+  showSearchBox.value = !showSearchBox.value;
+  if (showSearchBox.value) {
+    // 打开搜索框时，聚焦输入框
+    setTimeout(() => {
+      const searchInput = document.querySelector('.response-search-input');
+      if (searchInput) searchInput.focus();
+    }, 100);
+  } else {
+    // 关闭搜索框时，清除搜索
+    clearSearch();
+  }
+};
+
+const performSearch = () => {
+  if (!response.value || !searchQuery.value) {
+    searchMatches.value = [];
+    currentMatchIndex.value = -1;
+    return;
+  }
+
+  // 根据当前视图选择搜索内容
+  const content = activeBodyViewTab.value === 0 ? response.value.body : response.value.rawBody;
+  searchMatches.value = [];
+  
+  try {
+    if (searchRegex.value) {
+      // 正则表达式搜索
+      const flags = searchCaseSensitive.value ? 'g' : 'gi';
+      const regex = new RegExp(searchQuery.value, flags);
+      let match;
+      while ((match = regex.exec(content)) !== null) {
+        searchMatches.value.push({
+          index: match.index,
+          length: match[0].length,
+          text: match[0]
+        });
+      }
+    } else {
+      // 普通文本搜索
+      const searchText = searchCaseSensitive.value ? searchQuery.value : searchQuery.value.toLowerCase();
+      const contentToSearch = searchCaseSensitive.value ? content : content.toLowerCase();
+      
+      let startIndex = 0;
+      while (true) {
+        const index = contentToSearch.indexOf(searchText, startIndex);
+        if (index === -1) break;
+        
+        searchMatches.value.push({
+          index: index,
+          length: searchQuery.value.length,
+          text: content.substr(index, searchQuery.value.length)
+        });
+        
+        startIndex = index + 1;
+      }
+    }
+    
+    if (searchMatches.value.length > 0) {
+      currentMatchIndex.value = 0;
+      scrollToMatch(0);
+    } else {
+      currentMatchIndex.value = -1;
+    }
+  } catch (error) {
+    console.error('Search error:', error);
+    searchMatches.value = [];
+    currentMatchIndex.value = -1;
+  }
+};
+
+const clearSearch = () => {
+  searchQuery.value = '';
+  searchMatches.value = [];
+  currentMatchIndex.value = -1;
+};
+
+const nextMatch = () => {
+  if (searchMatches.value.length === 0) return;
+  currentMatchIndex.value = (currentMatchIndex.value + 1) % searchMatches.value.length;
+  scrollToMatch(currentMatchIndex.value);
+};
+
+const prevMatch = () => {
+  if (searchMatches.value.length === 0) return;
+  currentMatchIndex.value = currentMatchIndex.value <= 0 
+    ? searchMatches.value.length - 1 
+    : currentMatchIndex.value - 1;
+  scrollToMatch(currentMatchIndex.value);
+};
+
+const scrollToMatch = (index) => {
+  // 这个函数会在下一个 tick 中执行，确保 DOM 已更新
+  setTimeout(() => {
+    const matchElement = document.querySelector(`.search-match-${index}`);
+    if (matchElement) {
+      matchElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, 100);
+};
+
+const highlightedResponseBody = computed(() => {
+  if (!response.value || searchMatches.value.length === 0) {
+    return activeBodyViewTab.value === 0 ? response.value?.body : response.value?.rawBody;
+  }
+
+  const content = activeBodyViewTab.value === 0 ? response.value.body : response.value.rawBody;
+  let result = '';
+  let lastIndex = 0;
+
+  searchMatches.value.forEach((match, idx) => {
+    // 添加匹配前的文本
+    result += escapeHtml(content.substring(lastIndex, match.index));
+    
+    // 添加高亮的匹配文本
+    const isCurrentMatch = idx === currentMatchIndex.value;
+    const highlightClass = isCurrentMatch 
+      ? 'bg-orange-400 dark:bg-orange-600 text-white search-match-' + idx
+      : 'bg-yellow-200 dark:bg-yellow-700 search-match-' + idx;
+    result += `<span class="${highlightClass}">${escapeHtml(match.text)}</span>`;
+    
+    lastIndex = match.index + match.length;
+  });
+
+  // 添加剩余的文本
+  result += escapeHtml(content.substring(lastIndex));
+
+  return result;
+});
+
+const escapeHtml = (text) => {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+};
+
+// 监听搜索参数变化
+watch([searchQuery, searchCaseSensitive, searchRegex], () => {
+  if (searchQuery.value) {
+    performSearch();
+  } else {
+    clearSearch();
+  }
+});
+
+// 监听 activeBodyViewTab 变化，重新搜索
+watch(activeBodyViewTab, () => {
+  if (searchQuery.value) {
+    performSearch();
+  }
+});
+
 const startResize = (event) => {
   isResizing.value = true;
   const startY = event.clientY;
@@ -2516,16 +2676,100 @@ defineExpose({
                     </button>
                   </div>
                   
-                  <!-- Copy Button -->
-                  <Button 
-                    v-if="!isImageResponse"
-                    icon="pi pi-copy"
-                    size="small"
-                    text
-                    class="mr-2"
-                    :title="activeBodyViewTab === 0 ? 'Copy Response' : 'Copy Raw Response'"
-                    @click="activeBodyViewTab === 0 ? copyResponseBody() : copyRawResponseBody()"
-                  />
+                  <div class="flex items-center gap-2 mr-2">
+                    <!-- Search Button -->
+                    <Button 
+                      v-if="!isImageResponse"
+                      icon="pi pi-search"
+                      size="small"
+                      text
+                      :class="{ 'text-primary': showSearchBox }"
+                      title="Search in response"
+                      @click="toggleSearchBox"
+                    />
+                    
+                    <!-- Copy Button -->
+                    <Button 
+                      v-if="!isImageResponse"
+                      icon="pi pi-copy"
+                      size="small"
+                      text
+                      :title="activeBodyViewTab === 0 ? 'Copy Response' : 'Copy Raw Response'"
+                      @click="activeBodyViewTab === 0 ? copyResponseBody() : copyRawResponseBody()"
+                    />
+                  </div>
+                </div>
+
+                <!-- Search Box -->
+                <div v-if="showSearchBox && !isImageResponse" class="p-2 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900">
+                  <div class="flex items-center gap-2">
+                    <InputText 
+                      v-model="searchQuery"
+                      placeholder="Search..."
+                      size="small"
+                      class="flex-1 response-search-input"
+                      @keyup.enter="performSearch"
+                      @keyup.esc="toggleSearchBox"
+                    />
+                    
+                    <!-- Case Sensitive Toggle -->
+                    <Button 
+                      label="Aa"
+                      size="small"
+                      :severity="searchCaseSensitive ? 'primary' : 'secondary'"
+                      :outlined="!searchCaseSensitive"
+                      :class="{ 'search-toggle-active': searchCaseSensitive }"
+                      title="Match case"
+                      @click="searchCaseSensitive = !searchCaseSensitive"
+                    />
+                    
+                    <!-- Regex Toggle -->
+                    <Button 
+                      label=".*"
+                      size="small"
+                      :severity="searchRegex ? 'primary' : 'secondary'"
+                      :outlined="!searchRegex"
+                      :class="{ 'search-toggle-active': searchRegex }"
+                      title="Use regular expression"
+                      @click="searchRegex = !searchRegex"
+                    />
+                    
+                    <!-- Match Counter -->
+                    <span v-if="searchMatches.length > 0" class="text-xs text-surface-600 dark:text-surface-400 whitespace-nowrap">
+                      {{ currentMatchIndex + 1 }} / {{ searchMatches.length }}
+                    </span>
+                    <span v-else-if="searchQuery" class="text-xs text-surface-600 dark:text-surface-400">
+                      No matches
+                    </span>
+                    
+                    <!-- Navigation Buttons -->
+                    <Button 
+                      icon="pi pi-chevron-up"
+                      size="small"
+                      text
+                      :disabled="searchMatches.length === 0"
+                      title="Previous match"
+                      @click="prevMatch"
+                    />
+                    <Button 
+                      icon="pi pi-chevron-down"
+                      size="small"
+                      text
+                      :disabled="searchMatches.length === 0"
+                      title="Next match"
+                      @click="nextMatch"
+                    />
+                    
+                    <!-- Close Button -->
+                    <Button 
+                      icon="pi pi-times"
+                      size="small"
+                      text
+                      severity="secondary"
+                      title="Close search"
+                      @click="toggleSearchBox"
+                    />
+                  </div>
                 </div>
 
                 <!-- Pretty View -->
@@ -2539,20 +2783,27 @@ defineExpose({
                       style="max-height: 500px;"
                     />
                   </div>
-                  <!-- Code Response (JSON/XML/HTML) -->
+                  <!-- Code Response (JSON/XML/HTML) - 始终使用 CodeEditor，支持搜索高亮 -->
                   <CodeEditor 
                     v-else-if="shouldUseCodeEditor"
                     :modelValue="response.body"
                     :language="responseLanguage"
                     :readOnly="true"
+                    :searchMatches="searchMatches"
+                    :currentMatchIndex="currentMatchIndex"
                   />
-                  <!-- Text Response -->
+                  <!-- Text Response with search highlighting -->
+                  <pre v-else-if="searchMatches.length > 0" class="text-xs font-mono whitespace-pre-wrap" v-html="highlightedResponseBody"></pre>
+                  <!-- Text Response without search -->
                   <pre v-else class="text-xs font-mono whitespace-pre-wrap">{{ response.body }}</pre>
                 </div>
 
                 <!-- Raw View -->
                 <div v-else class="flex-1 overflow-y-auto p-4">
-                  <pre class="text-xs font-mono whitespace-pre-wrap">{{ response.rawBody }}</pre>
+                  <!-- Text with search highlighting -->
+                  <pre v-if="searchMatches.length > 0" class="text-xs font-mono whitespace-pre-wrap" v-html="highlightedResponseBody"></pre>
+                  <!-- Text without search -->
+                  <pre v-else class="text-xs font-mono whitespace-pre-wrap">{{ response.rawBody }}</pre>
                 </div>
               </div>
             </TabPanel>
@@ -2901,4 +3152,21 @@ defineExpose({
   height: 100%;
 }
 
+/* Search toggle button active state */
+.search-toggle-active {
+  font-weight: 700 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+}
+
+:deep(.search-toggle-active.p-button) {
+  background: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+  color: white !important;
+}
+
+:deep(.p-dark .search-toggle-active.p-button) {
+  background: #60a5fa !important;
+  border-color: #60a5fa !important;
+  color: #1e293b !important;
+}
 </style>

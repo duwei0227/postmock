@@ -1,11 +1,12 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue';
 import { EditorView, basicSetup } from 'codemirror';
+import { Decoration } from '@codemirror/view';
 import { json } from '@codemirror/lang-json';
 import { xml } from '@codemirror/lang-xml';
 import { html } from '@codemirror/lang-html';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorState } from '@codemirror/state';
+import { EditorState, StateEffect, StateField } from '@codemirror/state';
 
 const props = defineProps({
   modelValue: {
@@ -20,6 +21,14 @@ const props = defineProps({
   readOnly: {
     type: Boolean,
     default: false
+  },
+  searchMatches: {
+    type: Array,
+    default: () => []
+  },
+  currentMatchIndex: {
+    type: Number,
+    default: -1
   }
 });
 
@@ -44,6 +53,74 @@ const getLanguageExtension = () => {
       return html();
     default:
       return [];
+  }
+};
+
+// 搜索高亮相关
+const setSearchHighlights = StateEffect.define();
+
+const searchHighlightField = StateField.define({
+  create() {
+    return Decoration.none;
+  },
+  update(highlights, tr) {
+    for (let effect of tr.effects) {
+      if (effect.is(setSearchHighlights)) {
+        return effect.value;
+      }
+    }
+    return highlights;
+  },
+  provide: f => EditorView.decorations.from(f)
+});
+
+const highlightTheme = EditorView.baseTheme({
+  '.cm-searchMatch': {
+    backgroundColor: '#fef08a !important',
+    color: '#000 !important'
+  },
+  '.cm-searchMatch-current': {
+    backgroundColor: '#fb923c !important',
+    color: '#fff !important',
+    fontWeight: 'bold !important'
+  },
+  '.p-dark .cm-searchMatch': {
+    backgroundColor: '#a16207 !important',
+    color: '#fff !important'
+  },
+  '.p-dark .cm-searchMatch-current': {
+    backgroundColor: '#ea580c !important',
+    color: '#fff !important',
+    fontWeight: 'bold !important'
+  }
+});
+
+const updateSearchHighlights = () => {
+  if (!editorView) return;
+  
+  const decorations = [];
+  
+  props.searchMatches.forEach((match, idx) => {
+    const isCurrent = idx === props.currentMatchIndex;
+    const deco = Decoration.mark({
+      class: isCurrent ? 'cm-searchMatch-current' : 'cm-searchMatch'
+    }).range(match.index, match.index + match.length);
+    decorations.push(deco);
+  });
+  
+  const decorationSet = Decoration.set(decorations.sort((a, b) => a.from - b.from));
+  
+  editorView.dispatch({
+    effects: setSearchHighlights.of(decorationSet)
+  });
+  
+  // 滚动到当前匹配项
+  if (props.currentMatchIndex >= 0 && props.searchMatches[props.currentMatchIndex]) {
+    const match = props.searchMatches[props.currentMatchIndex];
+    editorView.dispatch({
+      selection: { anchor: match.index, head: match.index + match.length },
+      scrollIntoView: true
+    });
   }
 };
 
@@ -84,6 +161,8 @@ onMounted(() => {
     basicSetup,
     getLanguageExtension(),
     EditorView.editable.of(!props.readOnly),
+    searchHighlightField,
+    highlightTheme,
     EditorView.updateListener.of((update) => {
       if (update.docChanged && !props.readOnly) {
         emit('update:modelValue', update.state.doc.toString());
@@ -114,6 +193,8 @@ onMounted(() => {
         basicSetup,
         getLanguageExtension(),
         EditorView.editable.of(!props.readOnly),
+        searchHighlightField,
+        highlightTheme,
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !props.readOnly) {
             emit('update:modelValue', update.state.doc.toString());
@@ -134,8 +215,15 @@ onMounted(() => {
         }),
         parent: editorContainer.value
       });
+      
+      updateSearchHighlights();
     }
   });
+  
+  // 监听搜索匹配变化
+  watch(() => [props.searchMatches, props.currentMatchIndex], () => {
+    updateSearchHighlights();
+  }, { deep: true });
 });
 
 watch(() => props.modelValue, (newVal) => {
@@ -159,6 +247,8 @@ watch(() => props.language, () => {
       basicSetup,
       getLanguageExtension(),
       EditorView.editable.of(!props.readOnly),
+      searchHighlightField,
+      highlightTheme,
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !props.readOnly) {
           emit('update:modelValue', update.state.doc.toString());
@@ -202,6 +292,8 @@ watch(() => props.language, () => {
       }),
       parent: editorContainer.value
     });
+    
+    updateSearchHighlights();
   }
 });
 </script>
