@@ -49,6 +49,39 @@
 
 也可以在 GitHub Actions 页面手动触发 `Release Desktop App` 工作流。
 
+### 删除和重新发布版本
+
+如果需要删除已发布的版本并重新发布：
+
+1. **删除 GitHub Release**
+   - 访问 https://github.com/duwei0227/postmock/releases
+   - 找到要删除的 Release
+   - 点击 "Delete" 删除
+
+2. **删除远程 tag**
+   ```bash
+   git push --delete origin v0.1.0
+   ```
+
+3. **删除本地 tag**
+   ```bash
+   git tag -d v0.1.0
+   ```
+
+4. **重新创建并推送 tag**
+   ```bash
+   # 确保代码已更新并提交
+   git add .
+   git commit -m "fix: update release"
+   git push
+   
+   # 重新创建 tag
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+**注意：** 删除并重新发布同一版本号不是推荐做法，建议使用新的版本号（如 v0.1.1）。
+
 ### CI/CD 工作流
 
 - **build.yml**: 在每次推送和 PR 时自动构建和测试
@@ -67,3 +100,32 @@
 - Release 默认创建为草稿，需要手动发布
 - 确保 GitHub 仓库设置中启用了 Actions 权限
 - macOS 应用需要签名才能在用户设备上正常运行（需要配置代码签名证书）
+- 不建议删除并重新发布同一版本号，应使用新版本号
+
+## 常见问题
+
+### 构建失败怎么办？
+
+1. **检查 Actions 日志**
+   - 访问 https://github.com/duwei0227/postmock/actions
+   - 点击失败的工作流查看详细日志
+
+2. **常见问题：**
+   - 权限错误：检查 Settings → Actions → General → Workflow permissions
+   - 依赖安装失败：检查 package.json 和 Cargo.toml
+   - 构建失败：检查代码是否有语法错误
+   - Flatpak 失败：确保 release.yml 已完成且 AppImage 可用
+
+3. **重新运行：**
+   - 在 Actions 页面点击 "Re-run jobs"
+   - 选择 "Re-run failed jobs" 或 "Re-run all jobs"
+
+### 如何取消正在运行的构建？
+
+1. 访问 https://github.com/duwei0227/postmock/actions
+2. 点击正在运行的工作流
+3. 点击右上角的 "Cancel workflow"
+
+### 如何查看历史版本？
+
+访问 https://github.com/duwei0227/postmock/releases 查看所有已发布的版本。

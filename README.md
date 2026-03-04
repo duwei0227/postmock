@@ -2,6 +2,15 @@
 
 一个现代化的 API 测试工具，基于 Tauri 和 Vue 3 构建的跨平台桌面应用。
 
+![GitHub release](https://img.shields.io/github/v/release/duwei0227/postmock)
+![GitHub License](https://img.shields.io/github/license/duwei0227/postmock)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)
+
+<!-- 
+TODO: 添加应用截图
+![主界面](screenshots/main.png)
+-->
+
 ## 功能特性
 
 - 🚀 HTTP 请求测试 - 支持 GET、POST、PUT、DELETE、PATCH 等方法
@@ -126,13 +135,20 @@ postmock/
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 开启 Pull Request
 
-## 发布流程
-
-查看 [发布指南](.github/RELEASE.md) 了解如何发布新版本。
-
 ## 许可证
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+
+## 作者
+
+- [@duwei0227](https://github.com/duwei0227)
+
+## 相关链接
+
+- [GitHub 仓库](https://github.com/duwei0227/postmock)
+- [问题反馈](https://github.com/duwei0227/postmock/issues)
+- [发布页面](https://github.com/duwei0227/postmock/releases)
+- [更新日志](CHANGELOG.md)
 
 ## 致谢
 
