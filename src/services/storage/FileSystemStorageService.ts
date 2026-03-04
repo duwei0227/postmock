@@ -380,4 +380,38 @@ export class FileSystemStorageService implements IStorageService {
     await Promise.all(promises);
     this.saveQueue.clear();
   }
+
+  // Sequences
+  async loadSequences(): Promise<Record<string, any>> {
+    const filePath = await join(this.dataDir, 'sequences.json');
+    
+    try {
+      const fileExists = await exists(filePath);
+      if (!fileExists) {
+        return {};
+      }
+      
+      const content = await readTextFile(filePath);
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Failed to load sequences:', error);
+      return {};
+    }
+  }
+
+  async saveSequences(sequences: Record<string, any>): Promise<void> {
+    const filePath = await join(this.dataDir, 'sequences.json');
+    
+    try {
+      const content = JSON.stringify(sequences, null, 2);
+      await writeTextFile(filePath, content);
+    } catch (error) {
+      console.error('Failed to save sequences:', error);
+      throw new StorageError(
+        'Failed to save sequences',
+        ErrorCode.WRITE_ERROR,
+        error
+      );
+    }
+  }
 }

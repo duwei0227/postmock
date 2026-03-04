@@ -97,6 +97,19 @@ export interface IStorageService {
    */
   saveAppState(state: AppState): Promise<void>;
 
+  // Sequences
+  /**
+   * Load sequences from storage
+   * @returns Object mapping sequence names to sequence data
+   */
+  loadSequences(): Promise<Record<string, any>>;
+
+  /**
+   * Save sequences to storage
+   * @param sequences - Object mapping sequence names to sequence data
+   */
+  saveSequences(sequences: Record<string, any>): Promise<void>;
+
   // Utility
   /**
    * Create a backup of all data

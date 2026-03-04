@@ -236,12 +236,20 @@ const openEditSequence = (sequence) => {
 const saveSequence = async () => {
   if (!editingSequence.value) return;
   
+  console.log('[EnvironmentManager] saveSequence called');
+  console.log('[EnvironmentManager] editingSequence:', editingSequence.value);
+  
   try {
-    await sequencesStore.updateSequence(editingSequence.value.name, {
+    const updates = {
       currentValue: editingSequence.value.currentValue,
       step: editingSequence.value.step,
       padding: editingSequence.value.padding
-    });
+    };
+    console.log('[EnvironmentManager] Calling updateSequence with:', editingSequence.value.name, updates);
+    
+    await sequencesStore.updateSequence(editingSequence.value.name, updates);
+    
+    console.log('[EnvironmentManager] updateSequence succeeded');
     
     if (window.$toast) {
       window.$toast.add({
@@ -255,7 +263,8 @@ const saveSequence = async () => {
     showSequenceEditDialog.value = false;
     editingSequence.value = null;
   } catch (error) {
-    console.error('Failed to update sequence:', error);
+    console.error('[EnvironmentManager] Failed to update sequence:', error);
+    console.error('[EnvironmentManager] Error stack:', error.stack);
     if (window.$toast) {
       window.$toast.add({
         severity: 'error',
@@ -482,11 +491,23 @@ const openVariablesView = () => {
 };
 
 const editSequenceFromView = (sequenceName) => {
-  const sequence = sequencesStore.getAllSequences().find(s => s.name === sequenceName);
-  if (sequence) {
-    showVariablesViewDialog.value = false;
-    openEditSequence(sequence);
+  let sequence = sequencesStore.getAllSequences().find(s => s.name === sequenceName);
+  
+  // 如果序列不存在（未初始化），创建一个临时的序列对象用于编辑
+  if (!sequence) {
+    sequence = {
+      name: sequenceName,
+      currentValue: 1,
+      startValue: 1,
+      step: 1,
+      padding: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
   }
+  
+  showVariablesViewDialog.value = false;
+  openEditSequence(sequence);
 };
 
 // 获取当前环境的变量（用于替换请求中的变量）
@@ -873,9 +894,28 @@ const replaceVariables = (str) => {
       }
       
       console.log(`[EnvironmentManager] Final sequence params - name: ${name}, padding: ${padding}, start: ${startValue}, step: ${step}`);
-      const sequenceValue = sequencesStore.getNextValue(name, padding, startValue, step);
-      console.log(`[EnvironmentManager] Replacing ${match} with sequence value: ${sequenceValue}`);
-      return sequenceValue;
+      
+      // 检查序列是否已存在
+      const existingSeq = sequencesStore.getAllSequences().find(s => s.name === name);
+      
+      if (existingSeq) {
+        // 序列已存在：
+        // - 忽略 startValue 和 step 参数（这些是序列的核心配置，不应该在使用时修改）
+        // - padding 参数仅用于本次格式化
+        console.log(`[EnvironmentManager] Sequence "${name}" already exists, using its configuration`);
+        console.log(`[EnvironmentManager] Existing config - currentValue: ${existingSeq.currentValue}, step: ${existingSeq.step}, padding: ${existingSeq.padding}`);
+        console.log(`[EnvironmentManager] Request padding: ${padding}, will use for formatting only`);
+        
+        const sequenceValue = sequencesStore.getNextValue(name, padding, existingSeq.startValue, existingSeq.step);
+        console.log(`[EnvironmentManager] Replacing ${match} with sequence value: ${sequenceValue}`);
+        return sequenceValue;
+      } else {
+        // 序列不存在，使用提供的参数创建新序列
+        console.log(`[EnvironmentManager] Creating new sequence "${name}" with provided parameters`);
+        const sequenceValue = sequencesStore.getNextValue(name, padding, startValue, step);
+        console.log(`[EnvironmentManager] Replacing ${match} with sequence value: ${sequenceValue}`);
+        return sequenceValue;
+      }
     }
     
     // 检查是否是 $randomInt 函数调用
@@ -1493,7 +1533,6 @@ defineExpose({
               </div>
               <div>
                 <Button 
-                  v-if="sequence.initialized"
                   icon="pi pi-pencil"
                   text
                   rounded

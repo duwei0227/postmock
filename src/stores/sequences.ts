@@ -21,11 +21,8 @@ export const useSequencesStore = defineStore('sequences', () => {
   async function loadSequences() {
     isLoading.value = true;
     try {
-      const data = await storageService.read('sequences.json');
-      if (data) {
-        const parsed = JSON.parse(data);
-        sequences.value = new Map(Object.entries(parsed));
-      }
+      const data = await storageService.loadSequences();
+      sequences.value = new Map(Object.entries(data));
     } catch (error) {
       console.error('Failed to load sequences:', error);
     } finally {
@@ -34,18 +31,23 @@ export const useSequencesStore = defineStore('sequences', () => {
   }
 
   async function saveSequences() {
+    console.log('[SequencesStore] saveSequences called');
+    console.log('[SequencesStore] sequences to save:', sequences.value);
     try {
       const obj = Object.fromEntries(sequences.value);
-      await storageService.write('sequences.json', JSON.stringify(obj, null, 2));
+      console.log('[SequencesStore] converted to object:', obj);
+      await storageService.saveSequences(obj);
+      console.log('[SequencesStore] Write completed successfully');
     } catch (error) {
-      console.error('Failed to save sequences:', error);
+      console.error('[SequencesStore] Failed to save sequences:', error);
+      console.error('[SequencesStore] Error stack:', error.stack);
       throw error;
     }
   }
 
   function getNextValue(
     name: string = 'default',
-    padding: number = 0,
+    padding: number | null = null,
     startValue: number = 1,
     step: number = 1
   ): string {
@@ -58,7 +60,7 @@ export const useSequencesStore = defineStore('sequences', () => {
         currentValue: startValue,
         startValue,
         step,
-        padding,
+        padding: padding ?? 0, // 首次创建时使用传入的 padding
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -67,7 +69,7 @@ export const useSequencesStore = defineStore('sequences', () => {
 
     const value = sequence.currentValue;
     
-    // Increment for next use
+    // Increment for next use (使用序列自己的 step)
     sequence.currentValue += sequence.step;
     sequence.updatedAt = new Date().toISOString();
 
@@ -75,8 +77,12 @@ export const useSequencesStore = defineStore('sequences', () => {
     saveSequences();
 
     // Format with padding
-    if (padding > 0) {
-      return value.toString().padStart(padding, '0');
+    // 如果传入了 padding 参数，使用传入的（仅用于格式化）
+    // 否则使用序列配置中的 padding
+    const effectivePadding = padding !== null ? padding : sequence.padding;
+    
+    if (effectivePadding > 0) {
+      return value.toString().padStart(effectivePadding, '0');
     }
     return value.toString();
   }
@@ -91,11 +97,38 @@ export const useSequencesStore = defineStore('sequences', () => {
   }
 
   async function updateSequence(name: string, updates: Partial<Sequence>) {
+    console.log('[SequencesStore] updateSequence called');
+    console.log('[SequencesStore] name:', name);
+    console.log('[SequencesStore] updates:', updates);
+    console.log('[SequencesStore] current sequences:', Array.from(sequences.value.keys()));
+    
     const sequence = sequences.value.get(name);
+    console.log('[SequencesStore] found sequence:', sequence);
+    
     if (sequence) {
+      console.log('[SequencesStore] Updating existing sequence');
       Object.assign(sequence, updates);
       sequence.updatedAt = new Date().toISOString();
+      console.log('[SequencesStore] Updated sequence:', sequence);
       await saveSequences();
+      console.log('[SequencesStore] Saved to storage');
+    } else {
+      console.log('[SequencesStore] Creating new sequence');
+      // 如果序列不存在，创建一个新的
+      const newSequence: Sequence = {
+        name,
+        currentValue: updates.currentValue ?? 1,
+        startValue: updates.startValue ?? updates.currentValue ?? 1,
+        step: updates.step ?? 1,
+        padding: updates.padding ?? 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      console.log('[SequencesStore] New sequence:', newSequence);
+      sequences.value.set(name, newSequence);
+      console.log('[SequencesStore] Added to map, now have:', Array.from(sequences.value.keys()));
+      await saveSequences();
+      console.log('[SequencesStore] Saved to storage');
     }
   }
 
