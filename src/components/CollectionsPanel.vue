@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useCollectionsStore } from '@/stores/collections';
 import { useRequestsStore } from '@/stores/requests';
@@ -97,17 +97,33 @@ const menuItems = computed(() => {
     items.push(
       { label: 'Open', icon: 'pi pi-external-link', command: () => handleOpen() },
       { separator: true },
-      { label: 'Duplicate', icon: 'pi pi-copy', command: () => handleDuplicate() },
+      { 
+        label: 'Duplicate', 
+        icon: 'pi pi-copy', 
+        command: () => handleDuplicate(),
+        shortcut: 'Ctrl+D'
+      },
       { label: 'Rename', icon: 'pi pi-pencil', command: () => handleRename() },
       { separator: true },
-      { label: 'Delete', icon: 'pi pi-trash', class: 'text-red-600', command: () => handleDelete() }
+      { 
+        label: 'Delete', 
+        icon: 'pi pi-trash', 
+        class: 'text-red-600', 
+        command: () => handleDelete(),
+        shortcut: 'Delete'
+      }
     );
   } else {
     items.push(
       { label: 'Add Request', icon: 'pi pi-plus', command: () => handleAddRequest() },
       { label: 'Add Folder', icon: 'pi pi-folder-plus', command: () => handleAddFolder() },
       { separator: true },
-      { label: 'Duplicate', icon: 'pi pi-copy', command: () => handleDuplicate() },
+      { 
+        label: 'Duplicate', 
+        icon: 'pi pi-copy', 
+        command: () => handleDuplicate(),
+        shortcut: 'Ctrl+D'
+      },
       { label: 'Rename', icon: 'pi pi-pencil', command: () => handleRename() }
     );
     
@@ -120,7 +136,13 @@ const menuItems = computed(() => {
     items.push(
       { separator: true },
       { label: 'Export', icon: 'pi pi-download', command: () => handleExport() },
-      { label: 'Delete', icon: 'pi pi-trash', class: 'text-red-600', command: () => handleDelete() }
+      { 
+        label: 'Delete', 
+        icon: 'pi pi-trash', 
+        class: 'text-red-600', 
+        command: () => handleDelete(),
+        shortcut: 'Delete'
+      }
     );
   }
   
@@ -211,6 +233,71 @@ const onTreeKeyDown = (event) => {
     event.stopPropagation();
   }
 };
+
+// 全局键盘快捷键处理
+const handleKeyDown = (event) => {
+  // 检查是否有选中的节点
+  const selectedKey = Object.keys(selectedKeys.value)[0];
+  if (!selectedKey) return;
+  
+  // 查找选中的节点
+  const findNodeByKey = (nodes, key) => {
+    for (const node of nodes) {
+      if (node.key === key) return node;
+      if (node.children && node.children.length > 0) {
+        const found = findNodeByKey(node.children, key);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  
+  const selectedNode = findNodeByKey(treeNodes.value, selectedKey);
+  if (!selectedNode) return;
+  
+  // Ctrl+D: Duplicate
+  if (event.ctrlKey && event.key === 'd') {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // 设置 contextMenuNode 为选中的节点
+    contextMenuNode.value = {
+      key: selectedNode.key,
+      label: selectedNode.label,
+      data: JSON.parse(JSON.stringify(selectedNode.data)),
+      icon: selectedNode.icon,
+      children: selectedNode.children
+    };
+    
+    handleDuplicate();
+  }
+  
+  // Delete: Delete
+  if (event.key === 'Delete') {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // 设置 contextMenuNode 为选中的节点
+    contextMenuNode.value = {
+      key: selectedNode.key,
+      label: selectedNode.label,
+      data: JSON.parse(JSON.stringify(selectedNode.data)),
+      icon: selectedNode.icon,
+      children: selectedNode.children
+    };
+    
+    handleDelete();
+  }
+};
+
+// 挂载和卸载键盘事件监听器
+onMounted(() => {
+  window.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 
 // Helper functions
 const getCollectionAndFolder = (node) => {
@@ -965,7 +1052,17 @@ defineExpose({
       </Tree>
     </div>
 
-    <ContextMenu ref="contextMenu" :model="menuItems" />
+    <ContextMenu ref="contextMenu" :model="menuItems">
+      <template #item="{ item, props }">
+        <a v-ripple class="flex items-center" v-bind="props.action">
+          <span :class="item.icon" />
+          <span class="ml-2">{{ item.label }}</span>
+          <span v-if="item.shortcut" class="ml-auto pl-4 text-xs opacity-60 font-mono">
+            {{ item.shortcut }}
+          </span>
+        </a>
+      </template>
+    </ContextMenu>
 
     <Dialog 
       v-model:visible="showCreateDialog"
@@ -1049,5 +1146,16 @@ defineExpose({
   padding: 2px 6px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+/* ContextMenu 快捷键样式 */
+:deep(.p-contextmenu .p-menuitem-link) {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+:deep(.p-contextmenu .p-menuitem-link .ml-auto) {
+  margin-left: auto;
 }
 </style>
