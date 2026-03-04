@@ -40,7 +40,8 @@ const variableSuggestions = computed(() => {
     '$guid': 'Random UUID/GUID',
     '$date': '$date or $date("format") - Current date (default: yyyy-MM-dd)',
     '$time': '$time or $time("format") - Current time (default: HH:mm:ss)',
-    '$datetime': '$datetime or $datetime("format") - Current datetime (default: yyyy-MM-dd HH:mm:ss)'
+    '$datetime': '$datetime or $datetime("format") - Current datetime (default: yyyy-MM-dd HH:mm:ss)',
+    '$randomString': '$randomString or $randomString(length, "type") - Random string (default: 10 chars, alphanumeric). Types: alpha, numeric, alphanumeric, uppercase, lowercase'
   };
   
   if (!currentVariablePrefix.value) {
@@ -184,6 +185,12 @@ const checkVariableExists = (varName) => {
   const randomIntMatch = varName.match(/^\$randomInt\s*\(\s*\d+\s*,\s*\d+\s*\)$/);
   if (randomIntMatch) {
     return true; // $randomInt(start, end) 格式是有效的
+  }
+  
+  // 检查是否是 $randomString 函数调用格式
+  const randomStringMatch = varName.match(/^\$randomString\s*\(\s*\d+(?:\s*,\s*['"]([^'"]+)['"])?\s*\)$/);
+  if (randomStringMatch) {
+    return true; // $randomString(length) 或 $randomString(length, "type") 格式是有效的
   }
   
   // 检查是否是 $date 函数调用格式

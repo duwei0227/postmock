@@ -230,6 +230,42 @@ const formatDateTime = (date, format) => {
     .replace(/ss/g, seconds);
 };
 
+// 生成随机字符串的辅助函数
+const generateRandomString = (length = 10, options = { alpha: true, numeric: true, uppercase: true, lowercase: true }) => {
+  let chars = '';
+  
+  if (options.uppercase) chars += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  if (options.lowercase) chars += 'abcdefghijklmnopqrstuvwxyz';
+  if (options.numeric) chars += '0123456789';
+  
+  // 如果没有选择任何字符类型，默认使用全部
+  if (chars === '') {
+    chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  }
+  
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  
+  return result;
+};
+
+// 生成随机中文字符串的辅助函数
+const generateRandomChineseString = (length = 5) => {
+  // 常用汉字 Unicode 范围：0x4E00 - 0x9FA5
+  const minCode = 0x4E00;
+  const maxCode = 0x9FA5;
+  
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    const code = Math.floor(Math.random() * (maxCode - minCode + 1)) + minCode;
+    result += String.fromCharCode(code);
+  }
+  
+  return result;
+};
+
 // 获取所有可用变量（环境变量 + 内置变量）
 const getAllAvailableVariables = () => {
   const envVars = getCurrentEnvironmentVariables();
@@ -241,6 +277,7 @@ const getAllAvailableVariables = () => {
   // $date: 默认格式 yyyy-MM-dd，也可以使用 $date(format) 自定义格式
   // $time: 默认格式 HH:mm:ss，也可以使用 $time(format) 自定义格式
   // $datetime: 默认格式 yyyy-MM-dd HH:mm:ss，也可以使用 $datetime(format) 自定义格式
+  // $randomString: 默认长度 10，包含大小写字母和数字，可以使用 $randomString(length, options) 自定义
   const builtInVars = {
     '$timestamp': Date.now().toString(),
     '$isoTimestamp': new Date().toISOString(),
@@ -249,6 +286,7 @@ const getAllAvailableVariables = () => {
     '$date': formatDateTime(now, 'yyyy-MM-dd'),
     '$time': formatDateTime(now, 'HH:mm:ss'),
     '$datetime': formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'),
+    '$randomString': generateRandomString(10),
   };
   
   return { ...envVars, ...builtInVars };
@@ -274,6 +312,46 @@ const replaceVariables = (str) => {
       const randomValue = Math.floor(Math.random() * (end - start + 1)) + start;
       console.log(`[EnvironmentManager] Replacing ${match} with random int between ${start} and ${end}: ${randomValue}`);
       return randomValue.toString();
+    }
+    
+    // 检查是否是 $randomString 函数调用
+    // 支持格式: $randomString(length) 或 $randomString(length, "alpha") 或 $randomString(length, "numeric") 或 $randomString(length, "alphanumeric")
+    const randomStringMatch = trimmedVarName.match(/^\$randomString\s*\(\s*(\d+)(?:\s*,\s*['"]([^'"]+)['"])?\s*\)$/);
+    if (randomStringMatch) {
+      const length = parseInt(randomStringMatch[1], 10);
+      const type = randomStringMatch[2] || 'alphanumeric';
+      
+      let options = { alpha: false, numeric: false, uppercase: false, lowercase: false };
+      
+      switch (type.toLowerCase()) {
+        case 'alpha':
+          options.uppercase = true;
+          options.lowercase = true;
+          break;
+        case 'numeric':
+          options.numeric = true;
+          break;
+        case 'alphanumeric':
+          options.uppercase = true;
+          options.lowercase = true;
+          options.numeric = true;
+          break;
+        case 'uppercase':
+          options.uppercase = true;
+          break;
+        case 'lowercase':
+          options.lowercase = true;
+          break;
+        default:
+          // 默认使用 alphanumeric
+          options.uppercase = true;
+          options.lowercase = true;
+          options.numeric = true;
+      }
+      
+      const randomString = generateRandomString(length, options);
+      console.log(`[EnvironmentManager] Replacing ${match} with random string (length: ${length}, type: ${type}): ${randomString}`);
+      return randomString;
     }
     
     // 检查是否是 $date 函数调用
