@@ -174,7 +174,14 @@ const onTreeContextMenu = (event) => {
   const node = findNodeByText(treeNodes.value, textContent);
   
   if (node) {
-    contextMenuNode.value = node;
+    // 深拷贝节点，避免引用问题
+    contextMenuNode.value = {
+      key: node.key,
+      label: node.label,
+      data: JSON.parse(JSON.stringify(node.data)),
+      icon: node.icon,
+      children: node.children
+    };
     contextMenu.value.show(event);
   }
 };
@@ -183,7 +190,16 @@ const onTreeContextMenu = (event) => {
 const onNodeContextMenu = (node, event) => {
   event.preventDefault();
   event.stopPropagation();
-  contextMenuNode.value = node;
+  
+  // 深拷贝节点，避免引用问题
+  contextMenuNode.value = {
+    key: node.key,
+    label: node.label,
+    data: JSON.parse(JSON.stringify(node.data)),
+    icon: node.icon,
+    children: node.children
+  };
+  
   contextMenu.value.show(event);
 };
 
@@ -261,6 +277,9 @@ const handleAddRequest = () => {
     folder,
     name: `New Request`
   });
+  
+  // 清除 contextMenuNode 引用
+  contextMenuNode.value = null;
 };
 
 const handleAddFolder = () => {
@@ -270,20 +289,29 @@ const handleAddFolder = () => {
   showCreateDialog.value = true;
   newItemName.value = '';
   newItemDescription.value = '';
+  
+  // 注意：不要在这里清除 contextMenuNode，因为 createItem 函数还需要使用它
 };
 
 const handleDuplicate = async () => {
   if (!contextMenuNode.value) return;
   const node = contextMenuNode.value;
+  
+  // 深拷贝节点数据，避免引用问题
+  const nodeData = JSON.parse(JSON.stringify(node.data));
+  
   const { collection, folder } = getCollectionAndFolder(node);
   
-  if (node.data.type === 'request') {
-    await duplicateRequest(collection, node.data, folder);
-  } else if (node.data.type === 'folder') {
-    await duplicateFolder(collection, node.data);
-  } else if (node.data.type === 'collection') {
-    await duplicateCollection(node.data);
+  if (nodeData.type === 'request') {
+    await duplicateRequest(collection, nodeData, folder);
+  } else if (nodeData.type === 'folder') {
+    await duplicateFolder(collection, nodeData);
+  } else if (nodeData.type === 'collection') {
+    await duplicateCollection(nodeData);
   }
+  
+  // 清除 contextMenuNode 引用
+  contextMenuNode.value = null;
 };
 
 const handleRename = () => {
@@ -297,41 +325,51 @@ const handleRename = () => {
 const handleDelete = () => {
   if (!contextMenuNode.value) return;
   const node = contextMenuNode.value;
+  
+  // 深拷贝节点数据，避免引用问题
+  const nodeData = JSON.parse(JSON.stringify(node.data));
+  const nodeKey = node.key;
+  
   const { collection } = getCollectionAndFolder(node);
   
   confirm.require({
-    message: `确定要删除 "${node.data.name}" 吗？`,
+    message: `确定要删除 "${nodeData.name}" 吗？`,
     header: '确认删除',
     icon: 'pi pi-exclamation-triangle',
     acceptLabel: '删除',
     rejectLabel: '取消',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      if (node.data.type === 'request') {
-        await collectionsStore.removeRequestReference(collection.id, node.data.id);
-        await requestsStore.deleteRequest(node.data.id);
+      if (nodeData.type === 'request') {
+        await collectionsStore.removeRequestReference(collection.id, nodeData.id);
+        await requestsStore.deleteRequest(nodeData.id);
         // 通知 MainContent 关闭对应的 Tab
-        emit('request-deleted', node.data.id);
-      } else if (node.data.type === 'folder') {
+        emit('request-deleted', nodeData.id);
+      } else if (nodeData.type === 'folder') {
         // 收集 folder 中的所有 request IDs
-        const requestIds = collectAllRequestIds(node.data);
-        await collectionsStore.deleteFolder(collection.id, node.data.id);
+        const requestIds = collectAllRequestIds(nodeData);
+        await collectionsStore.deleteFolder(collection.id, nodeData.id);
         // 通知 MainContent 关闭所有相关的 Tabs
         requestIds.forEach(id => emit('request-deleted', id));
-      } else if (node.data.type === 'collection') {
+      } else if (nodeData.type === 'collection') {
         // 收集 collection 中的所有 request IDs
-        const requestIds = collectAllRequestIds(node.data);
-        await collectionsStore.deleteCollection(node.data.id);
+        const requestIds = collectAllRequestIds(nodeData);
+        await collectionsStore.deleteCollection(nodeData.id);
         // 通知 MainContent 关闭所有相关的 Tabs
         requestIds.forEach(id => emit('request-deleted', id));
       }
+      
+      // 清除 contextMenuNode 引用
+      contextMenuNode.value = null;
     }
   });
 };
 
 const handleShare = async () => {
   if (!contextMenuNode.value) return;
-  const collection = contextMenuNode.value.data;
+  
+  // 深拷贝 collection 数据，避免引用问题
+  const collection = JSON.parse(JSON.stringify(contextMenuNode.value.data));
   
   try {
     const requestIds = collectAllRequestIds(collection);
@@ -359,11 +397,16 @@ const handleShare = async () => {
   } catch (error) {
     console.error('Failed to share:', error);
   }
+  
+  // 清除 contextMenuNode 引用
+  contextMenuNode.value = null;
 };
 
 const handleExport = async () => {
   if (!contextMenuNode.value) return;
-  const collection = contextMenuNode.value.data;
+  
+  // 深拷贝 collection 数据，避免引用问题
+  const collection = JSON.parse(JSON.stringify(contextMenuNode.value.data));
   
   try {
     const requestIds = collectAllRequestIds(collection);
@@ -381,6 +424,9 @@ const handleExport = async () => {
   } catch (error) {
     console.error('Failed to export:', error);
   }
+  
+  // 清除 contextMenuNode 引用
+  contextMenuNode.value = null;
 };
 
 // Duplicate functions
@@ -419,6 +465,9 @@ const duplicateRequest = async (collection, request, folder) => {
       newRequest.url,
       folder?.id
     );
+    
+    // 等待 Vue 更新 DOM 和 computed 属性
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // 自动选中新创建的 request
     selectRequestNode(newRequest.id, collection.id, folder?.id);
