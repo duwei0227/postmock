@@ -210,16 +210,45 @@ const getCurrentEnvironmentVariables = () => {
   return vars;
 };
 
+// 格式化日期时间的辅助函数
+const formatDateTime = (date, format) => {
+  const pad = (num) => String(num).padStart(2, '0');
+  
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  
+  return format
+    .replace(/yyyy/g, year)
+    .replace(/MM/g, month)
+    .replace(/dd/g, day)
+    .replace(/HH/g, hours)
+    .replace(/mm/g, minutes)
+    .replace(/ss/g, seconds);
+};
+
 // 获取所有可用变量（环境变量 + 内置变量）
 const getAllAvailableVariables = () => {
   const envVars = getCurrentEnvironmentVariables();
   
+  const now = new Date();
+  
   // 内置变量
+  // $randomInt: 默认范围 0-1000，也可以使用 $randomInt(start, end) 指定范围
+  // $date: 默认格式 yyyy-MM-dd，也可以使用 $date(format) 自定义格式
+  // $time: 默认格式 HH:mm:ss，也可以使用 $time(format) 自定义格式
+  // $datetime: 默认格式 yyyy-MM-dd HH:mm:ss，也可以使用 $datetime(format) 自定义格式
   const builtInVars = {
     '$timestamp': Date.now().toString(),
     '$isoTimestamp': new Date().toISOString(),
-    '$randomInt': Math.floor(Math.random() * 1000).toString(),
+    '$randomInt': Math.floor(Math.random() * 1001).toString(), // 0-1000
     '$guid': crypto.randomUUID(),
+    '$date': formatDateTime(now, 'yyyy-MM-dd'),
+    '$time': formatDateTime(now, 'HH:mm:ss'),
+    '$datetime': formatDateTime(now, 'yyyy-MM-dd HH:mm:ss'),
   };
   
   return { ...envVars, ...builtInVars };
@@ -236,6 +265,45 @@ const replaceVariables = (str) => {
   
   const result = str.replace(/\{\{([^}]+)\}\}/g, (match, varName) => {
     const trimmedVarName = varName.trim();
+    
+    // 检查是否是 $randomInt 函数调用
+    const randomIntMatch = trimmedVarName.match(/^\$randomInt\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)$/);
+    if (randomIntMatch) {
+      const start = parseInt(randomIntMatch[1], 10);
+      const end = parseInt(randomIntMatch[2], 10);
+      const randomValue = Math.floor(Math.random() * (end - start + 1)) + start;
+      console.log(`[EnvironmentManager] Replacing ${match} with random int between ${start} and ${end}: ${randomValue}`);
+      return randomValue.toString();
+    }
+    
+    // 检查是否是 $date 函数调用
+    const dateMatch = trimmedVarName.match(/^\$date\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
+    if (dateMatch) {
+      const format = dateMatch[1];
+      const formattedDate = formatDateTime(new Date(), format);
+      console.log(`[EnvironmentManager] Replacing ${match} with formatted date: ${formattedDate}`);
+      return formattedDate;
+    }
+    
+    // 检查是否是 $time 函数调用
+    const timeMatch = trimmedVarName.match(/^\$time\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
+    if (timeMatch) {
+      const format = timeMatch[1];
+      const formattedTime = formatDateTime(new Date(), format);
+      console.log(`[EnvironmentManager] Replacing ${match} with formatted time: ${formattedTime}`);
+      return formattedTime;
+    }
+    
+    // 检查是否是 $datetime 函数调用
+    const datetimeMatch = trimmedVarName.match(/^\$datetime\s*\(\s*['"]([^'"]+)['"]\s*\)$/);
+    if (datetimeMatch) {
+      const format = datetimeMatch[1];
+      const formattedDatetime = formatDateTime(new Date(), format);
+      console.log(`[EnvironmentManager] Replacing ${match} with formatted datetime: ${formattedDatetime}`);
+      return formattedDatetime;
+    }
+    
+    // 普通变量替换
     const replacement = allVars[trimmedVarName] !== undefined ? allVars[trimmedVarName] : match;
     console.log(`[EnvironmentManager] Replacing ${match} with ${replacement}`);
     return replacement;
