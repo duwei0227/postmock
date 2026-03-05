@@ -93,7 +93,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2QUI2MEIxNzk4REQwMTAKUldRUTBJMTVzV0NyRnE0dE5KdzQzT2xGN3p5elpOODBNQzNXWmRlYk9SVGp6emdoNG9mRzZqQUQK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ5NEZDNDBENzEyRkI4NzUKUldSMXVDOXhEY1JQMmV0S3ZIdDFyNHlLdERDc0F3UWZEK1VMRWhqRkMzZWFidk5XWURuek9FSzEK",
       "endpoints": [
         "https://github.com/duwei0227/postmock/releases/latest/download/latest.json"
       ]
