@@ -46,6 +46,7 @@
 
 #### 📝 变更日志
 - [CHANGELOG_AUTOMATION.md](CHANGELOG_AUTOMATION.md) - 自动生成变更日志
+- [CHANGELOG_WORKFLOW.md](CHANGELOG_WORKFLOW.md) - CHANGELOG 和 Release Notes 工作流
 - [COMMIT_CONVENTION.md](COMMIT_CONVENTION.md) - 提交信息规范
 
 #### 📦 分发

@@ -109,25 +109,31 @@ jobs:
           VERSION="${{ env.PACKAGE_VERSION }}"
           CHANGELOG=$(cat /tmp/changelog.txt)
           
-          echo "## 下载安装" > /tmp/release-body.md
+          echo "## 📥 下载安装" > /tmp/release-body.md
           echo "" >> /tmp/release-body.md
-          echo "请根据你的操作系统下载对应的安装包：" >> /tmp/release-body.md
+          echo "> **提示：** 请只下载以下列出的安装包文件。其他文件（如 .sig、.app.tar.gz、latest.json）是自动更新系统使用的技术文件，普通用户无需下载。" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
-          echo "**Windows:**" >> /tmp/release-body.md
-          echo "- .msi - 推荐，安装程序" >> /tmp/release-body.md
-          echo "- .exe - NSIS 安装程序" >> /tmp/release-body.md
-          echo "- .zip - 便携版，解压即用" >> /tmp/release-body.md
+          echo "### Windows" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
-          echo "**macOS:**" >> /tmp/release-body.md
-          echo "- .dmg - 通用版本（Intel + Apple Silicon）" >> /tmp/release-body.md
+          echo "- **PostMock_${VERSION}_x64.msi** - 推荐，Windows 安装程序" >> /tmp/release-body.md
+          echo "- **PostMock_${VERSION}_x64-setup.exe** - NSIS 安装程序" >> /tmp/release-body.md
+          echo "- **postmock-${VERSION}-windows-x64-portable.zip** - 便携版，解压即用" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
-          echo "**Linux:**" >> /tmp/release-body.md
-          echo "- .AppImage - 便携版，无需安装" >> /tmp/release-body.md
-          echo "- .deb - Debian/Ubuntu 安装包" >> /tmp/release-body.md
-          echo "- .rpm - Fedora/RHEL/CentOS 安装包" >> /tmp/release-body.md
-          echo "- .tar.gz - 便携版，解压即用" >> /tmp/release-body.md
+          echo "### macOS" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
-          echo "## 更新内容" >> /tmp/release-body.md
+          echo "- **PostMock_${VERSION}_aarch64.dmg** - Apple Silicon (M1/M2/M3)" >> /tmp/release-body.md
+          echo "- **PostMock_${VERSION}_x64.dmg** - Intel 处理器" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "### Linux" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "- **PostMock_${VERSION}_amd64.AppImage** - 推荐，通用格式，无需安装" >> /tmp/release-body.md
+          echo "- **PostMock_${VERSION}_amd64.deb** - Debian/Ubuntu 系统" >> /tmp/release-body.md
+          echo "- **PostMock-${VERSION}-1.x86_64.rpm** - Fedora/RHEL/CentOS 系统" >> /tmp/release-body.md
+          echo "- **postmock-${VERSION}-linux-x64-portable.tar.gz** - 便携版，解压即用" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "---" >> /tmp/release-body.md
+          echo "" >> /tmp/release-body.md
+          echo "## 📝 更新内容" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
           echo "$CHANGELOG" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
