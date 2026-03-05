@@ -190,17 +190,34 @@ jobs:
       - name: Decode signing key
         shell: bash
         run: |
-          # 如果 TAURI_SIGNING_PRIVATE_KEY 是 base64 编码的，先解码
-          if [[ "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" =~ ^[A-Za-z0-9+/=]+$ ]] && [[ ! "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" =~ $'\n' ]]; then
-            echo "Detected base64 encoded key, decoding..."
-            DECODED_KEY=$(echo "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" | base64 -d)
-            echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
-            echo "$DECODED_KEY" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
+          # 检查密钥是否是 base64 编码的（单行且只包含 base64 字符）
+          KEY_VALUE="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
+          
+          # 如果密钥不包含换行符且看起来像 base64，尝试解码
+          if ! echo "$KEY_VALUE" | grep -q $'\n'; then
+            # 检查是否以 base64 特征开头（dW50 是 "untrusted" 的 base64）
+            if [[ "$KEY_VALUE" == dW50* ]]; then
+              echo "Detected base64 encoded key, decoding..."
+              DECODED_KEY=$(echo "$KEY_VALUE" | base64 -d)
+              
+              # 验证解码后的内容
+              LINE_COUNT=$(echo "$DECODED_KEY" | wc -l)
+              echo "Decoded key has $LINE_COUNT lines"
+              
+              # 将解码后的密钥设置为环境变量
+              echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+              echo "$DECODED_KEY" >> $GITHUB_ENV
+              echo "EOF" >> $GITHUB_ENV
+            else
+              echo "Key appears to be in plain text format"
+              echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+              echo "$KEY_VALUE" >> $GITHUB_ENV
+              echo "EOF" >> $GITHUB_ENV
+            fi
           else
-            echo "Key is already in correct format"
+            echo "Key is already in multi-line format"
             echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
-            echo "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" >> $GITHUB_ENV
+            echo "$KEY_VALUE" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
           fi
 
