@@ -178,4 +178,5 @@ https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-ac
 | 日期 | 更新内容 | 更新人 |
 |------|---------|--------|
 | 2024-03-05 | 初始创建文档清单 | duwei0227 |
+| 2024-03-05 | 修复 Flatpak manifest：AppImage 二进制路径从 squashfs-root/postmock 更正为 squashfs-root/usr/bin/postmock（参考：https://docs.appimage.org/packaging-guide/manual.html） | duwei0227 |
 
