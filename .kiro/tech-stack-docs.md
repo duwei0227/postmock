@@ -179,4 +179,7 @@ https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-ac
 |------|---------|--------|
 | 2024-03-05 | 初始创建文档清单 | duwei0227 |
 | 2024-03-05 | 修复 Flatpak manifest：AppImage 二进制路径从 squashfs-root/postmock 更正为 squashfs-root/usr/bin/postmock（参考：https://docs.appimage.org/packaging-guide/manual.html） | duwei0227 |
+| 2024-03-05 | 移除 Flatpak 构建支持 | duwei0227 |
+| 2024-03-05 | 增强 Linux tar.gz 便携版：添加图标、desktop 文件和安装脚本，支持桌面集成 | duwei0227 |
+| 2024-03-05 | 增强 Windows zip 便携版：添加图标文件和快捷方式创建脚本（VBScript + Batch） | duwei0227 |
 

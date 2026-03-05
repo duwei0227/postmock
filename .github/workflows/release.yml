@@ -113,7 +113,6 @@ jobs:
           echo "- .AppImage - 便携版，无需安装" >> /tmp/release-body.md
           echo "- .deb - Debian/Ubuntu 安装包" >> /tmp/release-body.md
           echo "- .rpm - Fedora/RHEL/CentOS 安装包" >> /tmp/release-body.md
-          echo "- .flatpak - Flatpak 通用包" >> /tmp/release-body.md
           echo "- .tar.gz - 便携版，解压即用" >> /tmp/release-body.md
           echo "" >> /tmp/release-body.md
           echo "## 更新内容" >> /tmp/release-body.md
@@ -253,6 +252,7 @@ jobs:
           PORTABLE_DIR="postmock-${VERSION}-linux-x64-portable"
           
           mkdir -p "$PORTABLE_DIR"
+          mkdir -p "$PORTABLE_DIR/icons"
           
           # Copy binary
           cp src-tauri/target/release/postmock "$PORTABLE_DIR/"
@@ -260,6 +260,26 @@ jobs:
           # Copy resources
           cp LICENSE "$PORTABLE_DIR/"
           cp README.md "$PORTABLE_DIR/"
+          
+          # Copy icons
+          cp src-tauri/icons/32x32.png "$PORTABLE_DIR/icons/"
+          cp src-tauri/icons/128x128.png "$PORTABLE_DIR/icons/"
+          cp src-tauri/icons/icon.png "$PORTABLE_DIR/icons/postmock.png"
+          
+          # Create desktop file
+          {
+            echo "[Desktop Entry]"
+            echo "Version=1.0"
+            echo "Type=Application"
+            echo "Name=PostMock"
+            echo "Comment=Modern API testing tool"
+            echo "Exec=\$PORTABLE_DIR/postmock.sh"
+            echo "Icon=\$PORTABLE_DIR/icons/postmock.png"
+            echo "Terminal=false"
+            echo "Categories=Development;Network;"
+            echo "Keywords=api;http;rest;testing;"
+          } > "$PORTABLE_DIR/postmock.desktop"
+          chmod +x "$PORTABLE_DIR/postmock.desktop"
           
           # Create README for portable version
           {
@@ -270,14 +290,29 @@ jobs:
             echo ""
             echo "Usage"
             echo "-----"
-            echo "1. Extract this archive to any location"
-            echo "2. Run: ./postmock"
+            echo "Option 1: Run directly"
+            echo "  ./postmock"
+            echo ""
+            echo "Option 2: Use launcher script"
+            echo "  ./postmock.sh"
+            echo ""
+            echo "Option 3: Install desktop entry (optional)"
+            echo "  ./install-desktop.sh"
             echo ""
             echo "Requirements"
             echo "------------"
             echo "- Linux x64 (Ubuntu 22.04+ or equivalent)"
             echo "- GTK 3.24+"
             echo "- WebKit2GTK 4.1+"
+            echo ""
+            echo "Desktop Integration"
+            echo "-------------------"
+            echo "To add PostMock to your application menu:"
+            echo "1. Run: ./install-desktop.sh"
+            echo "2. The application will appear in your menu with an icon"
+            echo ""
+            echo "To uninstall:"
+            echo "  ./uninstall-desktop.sh"
             echo ""
             echo "Data Storage"
             echo "------------"
@@ -295,6 +330,72 @@ jobs:
             echo './postmock "$@"'
           } > "$PORTABLE_DIR/postmock.sh"
           chmod +x "$PORTABLE_DIR/postmock.sh"
+          
+          # Create desktop installation script
+          {
+            echo "#!/bin/bash"
+            echo 'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"'
+            echo 'DESKTOP_DIR="$HOME/.local/share/applications"'
+            echo 'ICON_DIR="$HOME/.local/share/icons/hicolor/128x128/apps"'
+            echo ""
+            echo "# Create directories if they don't exist"
+            echo 'mkdir -p "$DESKTOP_DIR"'
+            echo 'mkdir -p "$ICON_DIR"'
+            echo ""
+            echo "# Copy icon"
+            echo 'cp "$SCRIPT_DIR/icons/postmock.png" "$ICON_DIR/"'
+            echo ""
+            echo "# Create desktop entry with absolute paths"
+            echo 'cat > "$DESKTOP_DIR/postmock.desktop" << EOF'
+            echo "[Desktop Entry]"
+            echo "Version=1.0"
+            echo "Type=Application"
+            echo "Name=PostMock"
+            echo "Comment=Modern API testing tool"
+            echo 'Exec=$SCRIPT_DIR/postmock.sh'
+            echo "Icon=postmock"
+            echo "Terminal=false"
+            echo "Categories=Development;Network;"
+            echo "Keywords=api;http;rest;testing;"
+            echo "EOF"
+            echo ""
+            echo 'chmod +x "$DESKTOP_DIR/postmock.desktop"'
+            echo ""
+            echo "# Update desktop database"
+            echo 'if command -v update-desktop-database &> /dev/null; then'
+            echo '    update-desktop-database "$DESKTOP_DIR"'
+            echo "fi"
+            echo ""
+            echo 'echo "Desktop entry installed successfully!"'
+            echo 'echo "PostMock should now appear in your application menu."'
+          } > "$PORTABLE_DIR/install-desktop.sh"
+          chmod +x "$PORTABLE_DIR/install-desktop.sh"
+          
+          # Create desktop uninstallation script
+          {
+            echo "#!/bin/bash"
+            echo 'DESKTOP_FILE="$HOME/.local/share/applications/postmock.desktop"'
+            echo 'ICON_FILE="$HOME/.local/share/icons/hicolor/128x128/apps/postmock.png"'
+            echo ""
+            echo 'if [ -f "$DESKTOP_FILE" ]; then'
+            echo '    rm "$DESKTOP_FILE"'
+            echo '    echo "Desktop entry removed."'
+            echo "fi"
+            echo ""
+            echo 'if [ -f "$ICON_FILE" ]; then'
+            echo '    rm "$ICON_FILE"'
+            echo '    echo "Icon removed."'
+            echo "fi"
+            echo ""
+            echo "# Update desktop database"
+            echo 'if command -v update-desktop-database &> /dev/null; then'
+            echo '    update-desktop-database "$HOME/.local/share/applications"'
+            echo "fi"
+            echo ""
+            echo 'echo "PostMock uninstalled successfully!"'
+          } > "$PORTABLE_DIR/uninstall-desktop.sh"
+          chmod +x "$PORTABLE_DIR/uninstall-desktop.sh"
+          
           chmod +x "$PORTABLE_DIR/postmock"
           
           # Create archive
@@ -311,6 +412,7 @@ jobs:
           $PORTABLE_DIR = "postmock-$VERSION-windows-x64-portable"
           
           New-Item -ItemType Directory -Path $PORTABLE_DIR -Force
+          New-Item -ItemType Directory -Path "$PORTABLE_DIR/icons" -Force
           
           # Copy binary
           Copy-Item "src-tauri/target/release/postmock.exe" "$PORTABLE_DIR/"
@@ -318,6 +420,9 @@ jobs:
           # Copy resources
           Copy-Item "LICENSE" "$PORTABLE_DIR/"
           Copy-Item "README.md" "$PORTABLE_DIR/"
+          
+          # Copy icon (for shortcut creation)
+          Copy-Item "src-tauri/icons/icon.ico" "$PORTABLE_DIR/icons/postmock.ico"
           
           # Create README for portable version
           $readmeContent = @(
@@ -328,14 +433,31 @@ jobs:
             "",
             "Usage",
             "-----",
-            "1. Extract this archive to any location",
-            "2. Double-click postmock.exe",
-            "   Or run from command line: postmock.exe",
+            "Option 1: Run directly",
+            "  Double-click postmock.exe",
+            "",
+            "Option 2: Use launcher script",
+            "  Double-click postmock.bat",
+            "",
+            "Option 3: Create desktop shortcut (optional)",
+            "  Right-click create-shortcut.vbs and select 'Open with Windows Script Host'",
+            "  Or run: create-desktop-shortcut.bat",
             "",
             "Requirements",
             "------------",
             "- Windows 10 or later (64-bit)",
             "- WebView2 Runtime (usually pre-installed on Windows 11)",
+            "",
+            "Desktop Shortcut",
+            "----------------",
+            "To create a desktop shortcut with icon:",
+            "1. Double-click 'create-desktop-shortcut.bat'",
+            "2. A shortcut will be created on your desktop",
+            "",
+            "You can also manually create a shortcut:",
+            "1. Right-click postmock.exe",
+            "2. Select 'Create shortcut'",
+            "3. Drag the shortcut to your desktop or Start Menu",
             "",
             "Data Storage",
             "------------",
@@ -353,6 +475,42 @@ jobs:
             "start `"`" postmock.exe %*"
           )
           $batchContent -join "`r`n" | Out-File -FilePath "$PORTABLE_DIR/postmock.bat" -Encoding ASCII
+          
+          # Create VBScript for desktop shortcut creation
+          $vbsContent = @(
+            "Set oWS = WScript.CreateObject(`"WScript.Shell`")",
+            "sLinkFile = oWS.SpecialFolders(`"Desktop`") & `"\PostMock.lnk`"",
+            "Set oLink = oWS.CreateShortcut(sLinkFile)",
+            "oLink.TargetPath = WScript.ScriptFullName",
+            "Set oFSO = CreateObject(`"Scripting.FileSystemObject`")",
+            "sScriptDir = oFSO.GetParentFolderName(WScript.ScriptFullName)",
+            "oLink.WorkingDirectory = sScriptDir",
+            "oLink.TargetPath = sScriptDir & `"\postmock.exe`"",
+            "oLink.IconLocation = sScriptDir & `"\icons\postmock.ico`"",
+            "oLink.Description = `"PostMock - Modern API testing tool`"",
+            "oLink.Save",
+            "WScript.Echo `"Desktop shortcut created successfully!`""
+          )
+          $vbsContent -join "`r`n" | Out-File -FilePath "$PORTABLE_DIR/create-shortcut.vbs" -Encoding ASCII
+          
+          # Create batch file to run VBScript
+          $shortcutBatchContent = @(
+            "@echo off",
+            "echo Creating desktop shortcut for PostMock...",
+            "cscript //nologo `"%~dp0create-shortcut.vbs`"",
+            "if %errorlevel% equ 0 (",
+            "    echo.",
+            "    echo Desktop shortcut created successfully!",
+            "    echo You can now find PostMock on your desktop.",
+            ") else (",
+            "    echo.",
+            "    echo Failed to create shortcut.",
+            "    echo Please create a shortcut manually by right-clicking postmock.exe",
+            ")",
+            "echo.",
+            "pause"
+          )
+          $shortcutBatchContent -join "`r`n" | Out-File -FilePath "$PORTABLE_DIR/create-desktop-shortcut.bat" -Encoding ASCII
           
           # Create archive
           Compress-Archive -Path $PORTABLE_DIR -DestinationPath "postmock-$VERSION-windows-x64-portable.zip" -Force
@@ -374,89 +532,3 @@ jobs:
         with:
           name: portable-${{ matrix.platform }}
           path: postmock-*-portable.*
-
-  build-flatpak:
-    name: Build Flatpak
-    needs: build-tauri
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      
-      - name: Get version
-        id: version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building Flatpak for version: $VERSION"
-      
-      - name: Download AppImage from release
-        run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          APPIMAGE_URL="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/postmock_${VERSION}_amd64.AppImage"
-          
-          echo "Downloading AppImage from: $APPIMAGE_URL"
-          
-          # Wait for AppImage to be available (max 5 minutes)
-          for i in {1..30}; do
-            if curl -f -L -o postmock.AppImage "$APPIMAGE_URL"; then
-              echo "AppImage downloaded successfully"
-              break
-            fi
-            echo "Waiting for AppImage to be available... (attempt $i/30)"
-            sleep 10
-          done
-          
-          if [ ! -f postmock.AppImage ]; then
-            echo "Failed to download AppImage"
-            exit 1
-          fi
-          
-          # Calculate SHA256
-          SHA256=$(sha256sum postmock.AppImage | awk '{print $1}')
-          echo "SHA256: $SHA256"
-          
-          # Update manifest with actual SHA256 and version
-          sed -i "s|REPLACE_WITH_ACTUAL_SHA256|$SHA256|g" cn.probiecoder.postmock.yml
-          sed -i "s|v0.1.0|v${VERSION}|g" cn.probiecoder.postmock.yml
-          sed -i "s|postmock_0.1.0_amd64.AppImage|postmock_${VERSION}_amd64.AppImage|g" cn.probiecoder.postmock.yml
-          
-          echo "Updated manifest:"
-          cat cn.probiecoder.postmock.yml
-      
-      - name: Install Flatpak and dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder
-          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          sudo flatpak install -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
-      
-      - name: Build Flatpak
-        run: |
-          flatpak-builder --force-clean --repo=repo build-dir cn.probiecoder.postmock.yml
-          flatpak build-bundle repo postmock.flatpak cn.probiecoder.postmock
-          
-          echo "Flatpak bundle created successfully"
-          ls -lh postmock.flatpak
-      
-      - name: Upload Flatpak to Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.version.outputs.VERSION }}
-          files: postmock.flatpak
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: flatpak-bundle
-          path: postmock.flatpak

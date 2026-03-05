@@ -48,14 +48,7 @@ TODO: 添加应用截图
 - `.AppImage` - 便携版（无需安装）
 - `.deb` - Debian/Ubuntu 安装包
 - `.rpm` - Fedora/RHEL/CentOS 安装包
-- `.flatpak` - Flatpak 通用包
 - `.tar.gz` - 便携版（解压即用）
-
-或者通过 Flathub 安装（即将推出）：
-
-```bash
-flatpak install flathub cn.probiecoder.postmock
-```
 
 ## 开发环境设置
 
