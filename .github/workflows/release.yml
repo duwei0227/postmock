@@ -285,8 +285,27 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
       
+      - name: Configure signing key
+        shell: bash
+        run: |
+          KEY_VALUE="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
+          
+          if [ -n "$KEY_VALUE" ]; then
+            echo "Configuring signing key..."
+            {
+              echo "TAURI_SIGNING_PRIVATE_KEY<<EOF"
+              echo "$KEY_VALUE"
+              echo "EOF"
+            } >> $GITHUB_ENV
+            echo "✅ Key configured"
+          else
+            echo "⚠️ No signing key found, skipping..."
+          fi
+      
       - name: Build Tauri app
         run: npm run tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
       
       - name: Get version
         id: version
