@@ -133,18 +133,38 @@ jobs:
             const fs = require('fs');
             const version = process.env.PACKAGE_VERSION;
             const releaseBody = fs.readFileSync('/tmp/release-body.md', 'utf8');
-
-            const { data } = await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: `v${version}`,
-              name: `PostMock v${version}`,
-              body: releaseBody,
-              draft: false,
-              prerelease: false,
-              generate_release_notes: true
-            })
-            return data.id
+            
+            // 检查 Release 是否已存在
+            let release;
+            try {
+              const { data } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: `v${version}`
+              });
+              console.log(`Release v${version} already exists, using existing release`);
+              release = data;
+            } catch (error) {
+              if (error.status === 404) {
+                // Release 不存在，创建新的
+                console.log(`Creating new release v${version}`);
+                const { data } = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: `v${version}`,
+                  name: `PostMock v${version}`,
+                  body: releaseBody,
+                  draft: false,
+                  prerelease: false,
+                  generate_release_notes: true
+                });
+                release = data;
+              } else {
+                throw error;
+              }
+            }
+            
+            return release.id
 
   build-tauri:
     needs: create-release
