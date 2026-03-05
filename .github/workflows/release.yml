@@ -212,12 +212,11 @@ jobs:
         run: |
           KEY_VALUE="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
           
-          # 计算行数来判断格式（跨平台兼容）
-          LINE_COUNT=$(echo "$KEY_VALUE" | wc -l)
-          
-          if [ "$LINE_COUNT" -gt 1 ]; then
+          # 检查是否包含换行符（使用 grep 但兼容不同平台）
+          if echo "$KEY_VALUE" | grep -q $'\n' 2>/dev/null || echo "$KEY_VALUE" | grep -q "
+" 2>/dev/null; then
             # 已经是多行格式
-            echo "Key is already in multi-line format ($LINE_COUNT lines)"
+            echo "Key is already in multi-line format"
             echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
             echo "$KEY_VALUE" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
@@ -226,26 +225,17 @@ jobs:
             if [[ "$KEY_VALUE" == dW50* ]]; then
               echo "Detected base64 encoded key, decoding..."
               
-              # 解码 base64（跨平台兼容）
-              if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
-                # Windows 环境
-                DECODED_KEY=$(echo "$KEY_VALUE" | base64 -d 2>/dev/null || echo "$KEY_VALUE" | base64 --decode)
-              else
-                # Linux/macOS 环境
-                DECODED_KEY=$(echo "$KEY_VALUE" | base64 -d)
-              fi
+              # 解码 base64
+              DECODED_KEY=$(echo "$KEY_VALUE" | base64 -d 2>/dev/null || echo "$KEY_VALUE" | base64 --decode 2>/dev/null)
               
               # 验证解码结果
-              DECODED_LINE_COUNT=$(echo "$DECODED_KEY" | wc -l)
-              echo "Decoded key has $DECODED_LINE_COUNT lines"
-              
-              if [ "$DECODED_LINE_COUNT" -ge 2 ]; then
+              if [ -n "$DECODED_KEY" ]; then
                 echo "Successfully decoded key"
                 echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
                 echo "$DECODED_KEY" >> $GITHUB_ENV
                 echo "EOF" >> $GITHUB_ENV
               else
-                echo "Warning: Decoded key has unexpected format, using as-is"
+                echo "Failed to decode, using original key"
                 echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
                 echo "$KEY_VALUE" >> $GITHUB_ENV
                 echo "EOF" >> $GITHUB_ENV
