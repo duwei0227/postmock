@@ -76,3 +76,17 @@ build-dir/
 .flatpak-builder/
 repo/
 *.flatpak
+
+# Signing keys (NEVER commit these!)
+*.key
+*.key.pub
+postmock*.key*
+
+# Test and temporary scripts
+extract*.sh
+extract*.py
+extract*.js
+test*.sh
+show*.sh
+final*.sh
+*decode*.sh

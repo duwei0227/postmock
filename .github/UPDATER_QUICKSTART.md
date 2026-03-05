@@ -1,190 +1,150 @@
-# Tauri Updater 快速启动指南
+# Tauri 自动更新快速启动指南
 
-## 当前状态
+> ✅ 状态：已配置并验证可用
+> 📅 最后更新：2024-03-05
 
-✅ 已完成的配置：
-- 安装了 `tauri-plugin-updater` 和 `@tauri-apps/plugin-process`
-- 创建了 `UpdateDialog.vue` 组件
-- 修改了 `Navbar.vue` 以支持更新检查
-- 配置了 `tauri.conf.json` 的 updater 部分
-- 添加了权限配置到 `capabilities/default.json`
-- 修改了 GitHub Actions 工作流以生成更新清单
+## 快速概览
 
-⚠️ 需要完成的步骤：
-1. 生成签名密钥对
-2. 配置公钥到 `tauri.conf.json`
-3. 配置 GitHub Secrets
+PostMock 已成功配置 Tauri 自动更新功能。本文档提供快速参考。
 
-## 完成设置步骤
+## 已完成的配置
 
-### 步骤 1: 生成签名密钥
+### 1. 依赖安装 ✅
+- `tauri-plugin-updater`
+- `@tauri-apps/plugin-updater`
+- `@tauri-apps/plugin-process`
 
-在项目根目录运行：
+### 2. 签名密钥配置 ✅
+- 公钥：已配置在 `src-tauri/tauri.conf.json`
+- 私钥：已配置在 GitHub Secrets (`TAURI_SIGNING_PRIVATE_KEY`)
+- 格式：base64 编码的文件内容
 
-```bash
-npm run tauri signer generate -- -w ~/.tauri/postmock.key
-```
+**详细说明：** 参见 [签名密钥配置指南](SIGNING_KEYS_GUIDE.md)
 
-- 会提示输入密码（可选，但推荐设置）
-- 生成后会在终端显示公钥
-- 私钥保存在 `~/.tauri/postmock.key`
-
-**重要**: 
-- 复制终端显示的公钥（以 `dW50cnVzdGVk` 开头的长字符串）
-- 妥善保管私钥文件，不要提交到 Git
-
-### 步骤 2: 配置公钥
-
-编辑 `src-tauri/tauri.conf.json`，找到：
-
-```json
-"plugins": {
-  "updater": {
-    "pubkey": "REPLACE_WITH_YOUR_PUBLIC_KEY",
-```
-
-将 `REPLACE_WITH_YOUR_PUBLIC_KEY` 替换为步骤 1 中生成的公钥。
-
-### 步骤 3: 配置 GitHub Secrets
-
-1. 进入 GitHub 仓库页面
-2. 点击 Settings → Secrets and variables → Actions
-3. 点击 "New repository secret"
-4. 添加以下 secrets：
-
-**TAURI_SIGNING_PRIVATE_KEY**
-- Name: `TAURI_SIGNING_PRIVATE_KEY`
-- Value: 私钥文件的完整内容
-  ```bash
-  cat ~/.tauri/postmock.key
-  ```
-  复制输出的全部内容
-
-**TAURI_SIGNING_PRIVATE_KEY_PASSWORD** (如果设置了密码)
-- Name: `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
-- Value: 你设置的密码
-
-### 步骤 4: 测试更新功能
-
-1. 提交并推送代码：
-   ```bash
-   git add .
-   git commit -m "feat: add auto-update functionality"
-   git push
-   ```
-
-2. 创建并推送新版本标签：
-   ```bash
-   # 先更新 package.json 中的版本号为 0.2.0
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-
-3. GitHub Actions 会自动：
-   - 构建所有平台的安装包
-   - 生成签名文件
-   - 创建 `latest.json` 更新清单
-   - 发布到 GitHub Release
-
-4. 在应用中测试：
-   - 运行应用（版本 0.1.0）
-   - 点击 Help → Check For Update
-   - 应该检测到 0.2.0 版本
-   - 点击 "Install Update" 下载并安装
-
-## 更新清单格式
-
-GitHub Actions 会自动生成 `latest.json` 文件，格式如下：
-
+### 3. Tauri 配置 ✅
 ```json
 {
-  "version": "0.2.0",
-  "notes": "更新日志内容",
-  "pub_date": "2024-03-05T10:00:00Z",
-  "platforms": {
-    "linux-x86_64": {
-      "signature": "...",
-      "url": "https://github.com/duwei0227/postmock/releases/download/v0.2.0/..."
-    },
-    "windows-x86_64": {
-      "signature": "...",
-      "url": "https://github.com/duwei0227/postmock/releases/download/v0.2.0/..."
-    },
-    "darwin-x86_64": {
-      "signature": "...",
-      "url": "https://github.com/duwei0227/postmock/releases/download/v0.2.0/..."
-    },
-    "darwin-aarch64": {
-      "signature": "...",
-      "url": "https://github.com/duwei0227/postmock/releases/download/v0.2.0/..."
+  "bundle": {
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6...",
+      "endpoints": [
+        "https://github.com/duwei0227/postmock/releases/latest/download/latest.json"
+      ]
     }
   }
 }
 ```
 
-## 用户体验流程
+### 4. 权限配置 ✅
+`src-tauri/capabilities/default.json`:
+```json
+{
+  "permissions": [
+    "updater:default"
+  ]
+}
+```
 
-1. 用户点击 "Help → Check For Update"
-2. 应用请求 `latest.json` 检查更新
-3. 如果有新版本：
-   - 显示更新对话框
-   - 展示版本号、发布日期和更新日志
-   - 用户可选择 "Install Update" 或 "Cancel"
-4. 点击 "Install Update"：
-   - 显示下载进度条
-   - 下载完成后验证签名
-   - 自动安装更新
-   - 重启应用
+### 5. UI 组件 ✅
+- `src/components/UpdateDialog.vue` - 更新对话框
+- `src/components/Navbar.vue` - 集成更新检查
+
+### 6. GitHub Actions ✅
+- `.github/workflows/release.yml` - 自动构建和发布
+- 自动生成签名文件 (`.sig`)
+- 自动生成更新清单 (`latest.json`)
+
+## 使用方法
+
+### 检查更新
+
+用户可以通过以下方式检查更新：
+1. 菜单：Help → Check for Updates
+2. 应用启动时自动检查（可选）
+
+### 发布新版本
+
+1. 更新版本号：
+   ```bash
+   # 更新 package.json 和 src-tauri/Cargo.toml 中的版本号
+   ```
+
+2. 创建并推送 tag：
+   ```bash
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+3. GitHub Actions 自动执行：
+   - 构建所有平台的安装包
+   - 生成签名文件
+   - 创建 GitHub Release
+   - 上传更新清单
+
+4. 用户自动收到更新通知
+
+## 密钥管理
+
+### 查看当前公钥
+```bash
+cat src-tauri/tauri.conf.json | grep -A 1 "pubkey"
+```
+
+### 重新生成密钥（如需要）
+```bash
+# 1. 生成新密钥
+npm run tauri signer generate -- -w ./postmock-new.key
+
+# 2. 更新配置
+# - 复制 postmock-new.key.pub 内容到 tauri.conf.json
+# - 复制 postmock-new.key 内容到 GitHub Secret
+
+# 3. 提交更改
+git add src-tauri/tauri.conf.json
+git commit -m "chore: update signing keys"
+git push
+```
+
+**详细步骤：** 参见 [签名密钥配置指南](SIGNING_KEYS_GUIDE.md)
 
 ## 故障排除
 
-### 问题：签名验证失败
+### 常见问题
 
-**原因**: 公钥配置不正确或私钥不匹配
+1. **更新检查失败**
+   - 首次发布前是正常的（没有 latest.json）
+   - 检查网络连接
+   - 查看浏览器控制台错误
 
-**解决**:
-1. 确认 `tauri.conf.json` 中的公钥与生成的公钥一致
-2. 确认 GitHub Secrets 中的私钥内容完整
-3. 重新生成密钥对并更新配置
+2. **签名验证失败**
+   - 确认公钥和私钥匹配
+   - 参考 [快速修复指南](QUICK_FIX_SIGNING_ERROR.md)
 
-### 问题：无法检测到更新
+3. **GitHub Actions 构建失败**
+   - 检查 GitHub Secret 配置
+   - 查看 Actions 日志
+   - 参考 [故障排除指南](TROUBLESHOOTING.md)
 
-**原因**: `latest.json` 文件不存在或格式错误
+## 相关文档
 
-**解决**:
-1. 检查 GitHub Release 中是否有 `latest.json` 文件
-2. 下载并验证 JSON 格式是否正确
-3. 检查 GitHub Actions 工作流日志
+- **[签名密钥配置指南](SIGNING_KEYS_GUIDE.md)** - 详细的密钥生成和配置流程 ⭐
+- [完整设置指南](UPDATER_SETUP.md) - 详细的功能实现说明
+- [GitHub Secrets 配置](GITHUB_SECRETS_SETUP.md) - Secrets 配置步骤
+- [故障排除](TROUBLESHOOTING.md) - 常见问题解决方案
+- [快速修复签名错误](QUICK_FIX_SIGNING_ERROR.md) - 签名问题快速修复
 
-### 问题：下载失败
+## 技术栈
 
-**原因**: 网络问题或文件 URL 不正确
+- Tauri v2 Updater Plugin
+- Minisign 签名机制
+- GitHub Actions
+- GitHub Releases
 
-**解决**:
-1. 检查网络连接
-2. 验证 `latest.json` 中的 URL 是否可访问
-3. 确认文件在 GitHub Release 中存在
+---
 
-## 安全注意事项
-
-1. ⚠️ 私钥必须保密，不要泄露
-2. ⚠️ 定期备份私钥文件
-3. ⚠️ 使用强密码保护私钥
-4. ✅ 仅在 HTTPS 端点上提供更新
-5. ✅ 定期检查 GitHub Secrets 的访问权限
-
-## 参考文档
-
-- [Tauri Updater 官方文档](https://v2.tauri.app/plugin/updater/)
-- [详细设置指南](.github/UPDATER_SETUP.md)
-- [GitHub Actions 工作流](.github/workflows/release.yml)
-
-## 下一步
-
-完成上述步骤后，你的应用就具备了自动更新功能。每次发布新版本时：
-
-1. 更新 `package.json` 中的版本号
-2. 更新 `CHANGELOG.md`（可选，会自动从 Git commits 生成）
-3. 创建并推送版本标签
-4. GitHub Actions 自动构建和发布
-5. 用户可以通过应用内更新功能升级
+**状态：** ✅ 生产就绪
+**维护者：** duwei0227
+**最后验证：** 2024-03-05
