@@ -45,17 +45,7 @@
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": "",
-      "wix": {
-        "language": "en-US",
-        "license": "../LICENSE"
-      },
-      "nsis": {
-        "license": "../LICENSE",
-        "installMode": "currentUser",
-        "languages": ["English", "SimpChinese"],
-        "displayLanguageSelector": true
-      }
+      "timestampUrl": ""
     },
     "macOS": {
       "frameworks": [],
