@@ -609,6 +609,73 @@ watch(() => localRequest.value.body.type, (newType, oldType) => {
   }
 });
 
+// SplitButton menu items
+const sendMenuItems = ref([
+  {
+    label: 'Send And Download',
+    icon: 'pi pi-download',
+    command: () => sendAndDownload()
+  }
+]);
+
+// 根据 Content-Type 获取文件扩展名
+const getExtensionFromContentType = (contentType) => {
+  if (!contentType) return '';
+  
+  const mimeType = contentType.split(';')[0].trim().toLowerCase();
+  const mimeToExt = {
+    // 文档
+    'application/pdf': '.pdf',
+    'application/msword': '.doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+    'application/vnd.ms-excel': '.xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+    'application/vnd.ms-powerpoint': '.ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+    
+    // 图片
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/png': '.png',
+    'image/gif': '.gif',
+    'image/webp': '.webp',
+    'image/svg+xml': '.svg',
+    'image/bmp': '.bmp',
+    'image/tiff': '.tiff',
+    
+    // 音视频
+    'audio/mpeg': '.mp3',
+    'audio/wav': '.wav',
+    'audio/ogg': '.ogg',
+    'video/mp4': '.mp4',
+    'video/mpeg': '.mpeg',
+    'video/webm': '.webm',
+    'video/ogg': '.ogv',
+    
+    // 压缩文件
+    'application/zip': '.zip',
+    'application/x-rar-compressed': '.rar',
+    'application/x-7z-compressed': '.7z',
+    'application/x-tar': '.tar',
+    'application/gzip': '.gz',
+    
+    // 文本
+    'text/plain': '.txt',
+    'text/html': '.html',
+    'text/css': '.css',
+    'text/javascript': '.js',
+    'text/csv': '.csv',
+    'text/xml': '.xml',
+    'application/json': '.json',
+    'application/xml': '.xml',
+    
+    // 其他
+    'application/octet-stream': '.bin'
+  };
+  
+  return mimeToExt[mimeType] || '';
+};
+
 const sendRequest = async () => {
   isLoading.value = true;
   isResponseCollapsed.value = false; // 发送请求时展开响应区域
@@ -795,6 +862,217 @@ const sendRequest = async () => {
     consoleLog.responseBody = `Error: ${error.message || error}`;
     
     emit('add-console-log', consoleLog);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const sendAndDownload = async () => {
+  isLoading.value = true;
+  isResponseCollapsed.value = false;
+  const startTime = Date.now();
+  
+  try {
+    // 构建完整的 URL（包含查询参数）- 替换变量
+    let url = replaceVariables(localRequest.value.url);
+    const enabledParams = localRequest.value.params.filter(p => p.enabled && p.key);
+    
+    if (enabledParams.length > 0) {
+      const queryString = enabledParams
+        .map(p => {
+          const key = replaceVariables(p.key);
+          const value = replaceVariables(p.value);
+          return `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+        })
+        .join('&');
+      url += (url.includes('?') ? '&' : '?') + queryString;
+    }
+
+    // 构建请求头 - 替换变量
+    const headers = {};
+    localRequest.value.headers
+      .filter(h => h.enabled && h.key)
+      .forEach(h => {
+        headers[replaceVariables(h.key)] = replaceVariables(h.value);
+      });
+
+    // 添加认证头 - 替换变量
+    if (localRequest.value.auth.type === 'bearer' && localRequest.value.auth.token) {
+      headers['Authorization'] = `Bearer ${replaceVariables(localRequest.value.auth.token)}`;
+    } else if (localRequest.value.auth.type === 'basic' && localRequest.value.auth.username) {
+      const username = replaceVariables(localRequest.value.auth.username);
+      const password = replaceVariables(localRequest.value.auth.password);
+      const credentials = btoa(`${username}:${password}`);
+      headers['Authorization'] = `Basic ${credentials}`;
+    }
+
+    // 构建请求体 - 替换变量
+    let body = null;
+    if (['POST', 'PUT', 'PATCH'].includes(localRequest.value.method)) {
+      if (localRequest.value.body.type === 'json' && localRequest.value.body.raw) {
+        headers['Content-Type'] = 'application/json';
+        body = replaceVariables(localRequest.value.body.raw);
+      } else if (localRequest.value.body.type === 'x-www-form-urlencoded') {
+        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        const enabledData = localRequest.value.body.urlencoded.filter(r => r.enabled && r.key);
+        body = enabledData
+          .map(r => `${encodeURIComponent(replaceVariables(r.key))}=${encodeURIComponent(replaceVariables(r.value))}`)
+          .join('&');
+      } else if (localRequest.value.body.type === 'form-data') {
+        const formDataObj = {};
+        localRequest.value.body.formData
+          .filter(r => r.enabled && r.key && r.type === 'text')
+          .forEach(r => {
+            formDataObj[replaceVariables(r.key)] = replaceVariables(r.value);
+          });
+        headers['Content-Type'] = 'application/json';
+        body = JSON.stringify(formDataObj);
+      }
+    }
+
+    // 发送请求
+    const fetchResponse = await fetch(url, {
+      method: localRequest.value.method,
+      headers,
+      body
+    });
+
+    const endTime = Date.now();
+    const contentType = fetchResponse.headers.get('content-type') || '';
+    
+    // 获取响应数据
+    const arrayBuffer = await fetchResponse.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: contentType });
+    
+    // 动态导入 Tauri 插件
+    const { save } = await import('@tauri-apps/plugin-dialog');
+    const { writeFile } = await import('@tauri-apps/plugin-fs');
+    
+    // 从 Content-Disposition 或 URL 中提取文件名
+    let suggestedFileName = 'download';
+    const contentDisposition = fetchResponse.headers.get('content-disposition');
+    
+    if (contentDisposition) {
+      // 尝试多种 Content-Disposition 格式
+      // 格式1: filename="example.pdf"
+      // 格式2: filename=example.pdf
+      // 格式3: filename*=UTF-8''example.pdf
+      const fileNameMatch = contentDisposition.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?/i);
+      if (fileNameMatch && fileNameMatch[1]) {
+        suggestedFileName = decodeURIComponent(fileNameMatch[1].trim());
+      }
+    }
+    
+    // 如果 Content-Disposition 没有提供文件名，从 URL 中提取
+    if (suggestedFileName === 'download') {
+      try {
+        const urlObj = new URL(url);
+        // 移除查询参数，只保留路径
+        const urlPath = urlObj.pathname;
+        const urlFileName = urlPath.substring(urlPath.lastIndexOf('/') + 1);
+        
+        // 如果 URL 路径有文件名（包含扩展名）
+        if (urlFileName && urlFileName.includes('.')) {
+          suggestedFileName = decodeURIComponent(urlFileName);
+        } else if (urlFileName) {
+          // 如果有路径但没有扩展名，根据 Content-Type 添加扩展名
+          suggestedFileName = decodeURIComponent(urlFileName);
+          const extension = getExtensionFromContentType(contentType);
+          if (extension && !suggestedFileName.includes('.')) {
+            suggestedFileName += extension;
+          }
+        } else {
+          // URL 路径为空，使用 Content-Type 生成文件名
+          const extension = getExtensionFromContentType(contentType);
+          suggestedFileName = `download${extension}`;
+        }
+      } catch (e) {
+        console.error('Error parsing URL:', e);
+        // 使用 Content-Type 生成默认文件名
+        const extension = getExtensionFromContentType(contentType);
+        suggestedFileName = `download${extension}`;
+      }
+    }
+    
+    console.log('Suggested file name:', suggestedFileName);
+    console.log('Content-Type:', contentType);
+    console.log('Content-Disposition:', contentDisposition);
+    
+    // 打开保存对话框
+    const filePath = await save({
+      defaultPath: suggestedFileName,
+      filters: []
+    });
+    
+    if (filePath) {
+      // 将 Blob 转换为 Uint8Array
+      const uint8Array = new Uint8Array(arrayBuffer);
+      
+      // 写入文件
+      await writeFile(filePath, uint8Array);
+      
+      // 显示成功消息
+      if (window.$toast) {
+        window.$toast.add({
+          severity: 'success',
+          summary: 'Download Complete',
+          detail: `File saved to ${filePath}`,
+          life: 3000
+        });
+      }
+      
+      // 更新响应显示
+      const size = arrayBuffer.byteLength;
+      const sizeStr = size < 1024 
+        ? `${size}B` 
+        : size < 1024 * 1024 
+          ? `${(size / 1024).toFixed(2)}KB` 
+          : `${(size / (1024 * 1024)).toFixed(2)}MB`;
+
+      response.value = {
+        status: fetchResponse.status,
+        statusText: fetchResponse.statusText,
+        time: `${endTime - startTime}ms`,
+        size: sizeStr,
+        body: `File downloaded successfully to:\n${filePath}`,
+        rawBody: `File downloaded successfully to:\n${filePath}`,
+        headers: Object.fromEntries(fetchResponse.headers.entries()),
+        contentType: contentType,
+        imageDataUrl: ''
+      };
+    } else {
+      // 用户取消了保存
+      if (window.$toast) {
+        window.$toast.add({
+          severity: 'info',
+          summary: 'Download Cancelled',
+          detail: 'File download was cancelled',
+          life: 2000
+        });
+      }
+    }
+  } catch (error) {
+    const endTime = Date.now();
+    response.value = {
+      status: 0,
+      statusText: 'Error',
+      time: `${endTime - startTime}ms`,
+      size: '0B',
+      body: `Error: ${error.message || error}`,
+      rawBody: `Error: ${error.message || error}`,
+      headers: {},
+      contentType: '',
+      imageDataUrl: ''
+    };
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'error',
+        summary: 'Download Failed',
+        detail: error.message || 'Failed to download file',
+        life: 3000
+      });
+    }
   } finally {
     isLoading.value = false;
   }
@@ -1891,9 +2169,10 @@ defineExpose({
             class="flex-1"
             :availableVariables="availableVariables"
           />
-          <Button 
+          <SplitButton 
             label="Send"
             :loading="isLoading"
+            :model="sendMenuItems"
             @click="sendRequest"
           />
           <Button 
