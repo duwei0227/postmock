@@ -190,35 +190,52 @@ jobs:
       - name: Decode signing key
         shell: bash
         run: |
-          # 检查密钥是否是 base64 编码的（单行且只包含 base64 字符）
           KEY_VALUE="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
           
-          # 如果密钥不包含换行符且看起来像 base64，尝试解码
-          if ! echo "$KEY_VALUE" | grep -q $'\n'; then
-            # 检查是否以 base64 特征开头（dW50 是 "untrusted" 的 base64）
+          # 计算行数来判断格式（跨平台兼容）
+          LINE_COUNT=$(echo "$KEY_VALUE" | wc -l)
+          
+          if [ "$LINE_COUNT" -gt 1 ]; then
+            # 已经是多行格式
+            echo "Key is already in multi-line format ($LINE_COUNT lines)"
+            echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+            echo "$KEY_VALUE" >> $GITHUB_ENV
+            echo "EOF" >> $GITHUB_ENV
+          else
+            # 单行格式，检查是否是 base64 编码
             if [[ "$KEY_VALUE" == dW50* ]]; then
               echo "Detected base64 encoded key, decoding..."
-              DECODED_KEY=$(echo "$KEY_VALUE" | base64 -d)
               
-              # 验证解码后的内容
-              LINE_COUNT=$(echo "$DECODED_KEY" | wc -l)
-              echo "Decoded key has $LINE_COUNT lines"
+              # 解码 base64（跨平台兼容）
+              if [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]]; then
+                # Windows 环境
+                DECODED_KEY=$(echo "$KEY_VALUE" | base64 -d 2>/dev/null || echo "$KEY_VALUE" | base64 --decode)
+              else
+                # Linux/macOS 环境
+                DECODED_KEY=$(echo "$KEY_VALUE" | base64 -d)
+              fi
               
-              # 将解码后的密钥设置为环境变量
-              echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
-              echo "$DECODED_KEY" >> $GITHUB_ENV
-              echo "EOF" >> $GITHUB_ENV
+              # 验证解码结果
+              DECODED_LINE_COUNT=$(echo "$DECODED_KEY" | wc -l)
+              echo "Decoded key has $DECODED_LINE_COUNT lines"
+              
+              if [ "$DECODED_LINE_COUNT" -ge 2 ]; then
+                echo "Successfully decoded key"
+                echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+                echo "$DECODED_KEY" >> $GITHUB_ENV
+                echo "EOF" >> $GITHUB_ENV
+              else
+                echo "Warning: Decoded key has unexpected format, using as-is"
+                echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
+                echo "$KEY_VALUE" >> $GITHUB_ENV
+                echo "EOF" >> $GITHUB_ENV
+              fi
             else
               echo "Key appears to be in plain text format"
               echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
               echo "$KEY_VALUE" >> $GITHUB_ENV
               echo "EOF" >> $GITHUB_ENV
             fi
-          else
-            echo "Key is already in multi-line format"
-            echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
-            echo "$KEY_VALUE" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
           fi
 
       - name: Build Tauri app
