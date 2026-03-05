@@ -90,6 +90,57 @@ Signature verification failed
    - 更新 `tauri.conf.json` 中的公钥
    - 更新 GitHub Secrets 中的私钥
 
+### 3.1. 私钥解码失败
+
+**错误信息**:
+```
+failed to decode secret key: failed to decode base64 secret key: 
+failed to decode base64 key: Invalid symbol 45, offset 0.
+```
+
+**原因**: GitHub Secrets 中的私钥格式不正确，包含了额外的字符或格式问题
+
+**解决方案**:
+
+1. **重新获取私钥**:
+   ```bash
+   ./scripts/show-private-key.sh
+   ```
+
+2. **正确复制私钥**:
+   - 私钥应该是 **恰好 2 行**
+   - 第 1 行: `untrusted comment: minisign encrypted secret key`
+   - 第 2 行: 以 `RW` 开头的 base64 编码字符串
+   - **不要**包含任何分隔线（`===`）
+   - **不要**包含任何额外的空行
+   - **不要**包含任何说明文字
+
+3. **验证复制的内容**:
+   ```bash
+   # 正确的格式示例：
+   untrusted comment: minisign encrypted secret key
+   RWRTYabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ==
+   ```
+
+4. **重新添加到 GitHub Secrets**:
+   - 删除现有的 `TAURI_SIGNING_PRIVATE_KEY` Secret
+   - 重新添加，确保只粘贴 2 行内容
+   - 不要在开头或结尾添加任何空格或换行
+
+5. **使用命令行直接复制**（推荐）:
+   ```bash
+   # macOS
+   cat ~/.tauri/postmock.key | pbcopy
+   
+   # Linux (需要 xclip)
+   cat ~/.tauri/postmock.key | xclip -selection clipboard
+   
+   # 或者手动复制
+   cat ~/.tauri/postmock.key
+   ```
+
+6. **重新运行工作流**
+
 ### 4. 权限错误
 
 **错误信息**:

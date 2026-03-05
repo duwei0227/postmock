@@ -21,13 +21,37 @@
 cat ~/.tauri/postmock.key
 ```
 
-输出类似：
+输出应该**恰好是 2 行**：
 ```
 untrusted comment: minisign encrypted secret key
-RWRTY6OE+NMxCJBrQFhd...（很长的一串字符）
+RWRTY6OE+NMxCJBrQFhd...（很长的一串字符，以 RW 开头）
 ```
 
-**复制整个输出内容**（包括第一行的注释）。
+**⚠️ 重要提示**：
+- 只复制这 2 行内容
+- 不要包含任何额外的空行
+- 不要包含任何说明文字或分隔线
+- 确保第二行以 `RW` 开头
+
+**验证私钥格式**（推荐）：
+```bash
+./scripts/verify-key-format.sh
+```
+
+这个脚本会检查私钥格式是否正确，并显示可以安全复制的内容。
+
+**使用剪贴板直接复制**（推荐）：
+```bash
+# macOS
+cat ~/.tauri/postmock.key | pbcopy
+
+# Linux (需要 xclip)
+sudo apt-get install xclip
+cat ~/.tauri/postmock.key | xclip -selection clipboard
+
+# Windows (Git Bash)
+cat ~/.tauri/postmock.key | clip
+```
 
 ### 步骤 2: 访问 GitHub 仓库设置
 
