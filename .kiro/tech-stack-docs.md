@@ -94,6 +94,14 @@
 - **文档**: https://v2.tauri.app/plugin/opener/
 - **GitHub**: https://github.com/tauri-apps/plugins-workspace
 
+#### tauri-plugin-updater
+- **文档**: https://v2.tauri.app/plugin/updater/
+- **GitHub**: https://github.com/tauri-apps/plugins-workspace
+
+#### tauri-plugin-process
+- **文档**: https://v2.tauri.app/reference/javascript/api/namespaceprocess/
+- **GitHub**: https://github.com/tauri-apps/plugins-workspace
+
 ## 构建和部署
 
 ### GitHub Actions
@@ -183,4 +191,5 @@ https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-ac
 | 2024-03-05 | 增强 Linux tar.gz 便携版：添加图标、desktop 文件和安装脚本，支持桌面集成 | duwei0227 |
 | 2024-03-05 | 增强 Windows zip 便携版：添加图标文件和快捷方式创建脚本（VBScript + Batch） | duwei0227 |
 | 2024-03-05 | 实现 HttpRequest.vue 文件下载功能：使用 PrimeVue SplitButton 组件（参考：https://primevue.org/splitbutton/），集成 Tauri dialog 和 fs 插件实现文件保存 | duwei0227 |
+| 2024-03-05 | 实现 Tauri 自动更新功能：集成 tauri-plugin-updater 和 tauri-plugin-process，创建 UpdateDialog 组件，修改 GitHub Actions 工作流生成更新清单（参考：https://v2.tauri.app/plugin/updater/） | duwei0227 |
 

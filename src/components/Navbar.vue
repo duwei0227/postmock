@@ -2,8 +2,11 @@
 import { ref, onMounted } from 'vue';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { invoke } from '@tauri-apps/api/core';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 import KeyboardShortcutsDialog from './KeyboardShortcutsDialog.vue';
 import AboutDialog from './AboutDialog.vue';
+import UpdateDialog from './UpdateDialog.vue';
 
 const isDark = ref(true);
 const isMaximized = ref(false);
@@ -13,6 +16,12 @@ const appWindow = getCurrentWindow();
 const helpMenuRef = ref(null);
 const showShortcutsDialog = ref(false);
 const showAboutDialog = ref(false);
+
+// Update dialog state
+const showUpdateDialog = ref(false);
+const updateInfo = ref(null);
+const isDownloading = ref(false);
+const downloadProgress = ref(0);
 
 const helpMenuItems = ref([
   {
@@ -66,75 +75,115 @@ const closeWindow = async () => {
 // Help menu functions
 const checkForUpdate = async () => {
   try {
-    // Get current version
-    const appInfo = await invoke('get_app_info');
-    const currentVersion = appInfo.version || '0.1.0';
+    console.log('Checking for updates...');
     
-    // Fetch latest release from GitHub
-    const response = await fetch('https://api.github.com/repos/duwei0227/postmock/releases/latest');
+    const update = await check();
     
-    if (!response.ok) {
-      throw new Error('Failed to fetch update information');
-    }
-    
-    const latestRelease = await response.json();
-    const latestVersion = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if exists
-    
-    // Compare versions
-    if (latestVersion === currentVersion) {
+    if (update) {
+      console.log(`Update available: ${update.version} from ${update.date}`);
+      
+      // Show update dialog with changelog
+      updateInfo.value = update;
+      showUpdateDialog.value = true;
+    } else {
+      console.log('No update available');
+      
+      // Show "up to date" message
       if (window.$toast) {
         window.$toast.add({
           severity: 'info',
           summary: 'Up to Date',
-          detail: `You are using the latest version (${currentVersion})`,
+          detail: 'You are using the latest version',
           life: 3000
-        });
-      }
-    } else {
-      if (window.$toast) {
-        window.$toast.add({
-          severity: 'success',
-          summary: 'Update Available',
-          detail: `New version ${latestVersion} is available! Current: ${currentVersion}`,
-          life: 5000
-        });
-      }
-      
-      // Open release page in browser
-      if (window.$confirm) {
-        window.$confirm.require({
-          message: `A new version (${latestVersion}) is available. Would you like to view the release page?`,
-          header: 'Update Available',
-          icon: 'pi pi-info-circle',
-          acceptLabel: 'View Release',
-          rejectLabel: 'Later',
-          accept: () => {
-            // Copy release URL to clipboard
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(latestRelease.html_url);
-              if (window.$toast) {
-                window.$toast.add({
-                  severity: 'success',
-                  summary: 'Link Copied',
-                  detail: 'Release page URL copied to clipboard',
-                  life: 2000
-                });
-              }
-            }
-          }
         });
       }
     }
   } catch (error) {
     console.error('Failed to check for updates:', error);
+    
+    // 更友好的错误提示
+    let errorMessage = 'Unable to check for updates. Please try again later.';
+    
+    if (error.message && error.message.includes('Could not fetch a valid release JSON')) {
+      errorMessage = 'No updates available yet. This feature will be enabled after the first release.';
+    }
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'warn',
+        summary: 'Update Check',
+        detail: errorMessage,
+        life: 4000
+      });
+    }
+  }
+};
+
+const handleInstallUpdate = async () => {
+  if (!updateInfo.value) return;
+  
+  try {
+    isDownloading.value = true;
+    downloadProgress.value = 0;
+    
+    console.log('Starting update download and installation...');
+    
+    // Download and install the update with progress tracking
+    await updateInfo.value.downloadAndInstall((event) => {
+      switch (event.event) {
+        case 'Started':
+          console.log(`Started downloading ${event.data.contentLength} bytes`);
+          break;
+        case 'Progress':
+          const downloaded = event.data.chunkLength;
+          const total = event.data.contentLength || 1;
+          downloadProgress.value = Math.round((downloaded / total) * 100);
+          console.log(`Download progress: ${downloadProgress.value}%`);
+          break;
+        case 'Finished':
+          console.log('Download finished');
+          downloadProgress.value = 100;
+          break;
+      }
+    });
+    
+    console.log('Update installed successfully');
+    
+    // Show success message
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'success',
+        summary: 'Update Installed',
+        detail: 'The application will now restart to apply the update',
+        life: 2000
+      });
+    }
+    
+    // Wait a moment for the toast to show
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Relaunch the application
+    await relaunch();
+  } catch (error) {
+    console.error('Failed to install update:', error);
+    
+    isDownloading.value = false;
+    
     if (window.$toast) {
       window.$toast.add({
         severity: 'error',
-        summary: 'Update Check Failed',
-        detail: 'Unable to check for updates. Please try again later.',
+        summary: 'Update Failed',
+        detail: error.message || 'Failed to install update. Please try again later.',
         life: 3000
       });
     }
+  }
+};
+
+const handleCancelUpdate = () => {
+  if (!isDownloading.value) {
+    showUpdateDialog.value = false;
+    updateInfo.value = null;
   }
 };
 
@@ -258,6 +307,15 @@ const handleGlobalShortcuts = (event) => {
     
     <AboutDialog 
       v-model:visible="showAboutDialog"
+    />
+    
+    <UpdateDialog
+      v-model:visible="showUpdateDialog"
+      :updateInfo="updateInfo"
+      :downloading="isDownloading"
+      :downloadProgress="downloadProgress"
+      @install="handleInstallUpdate"
+      @cancel="handleCancelUpdate"
     />
   </nav>
 </template>

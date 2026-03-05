@@ -21,6 +21,7 @@ import AccordionPanel from 'primevue/accordionpanel';
 import AccordionHeader from 'primevue/accordionheader';
 import AccordionContent from 'primevue/accordioncontent';
 import Badge from 'primevue/badge';
+import ProgressBar from 'primevue/progressbar';
 
 import App from "./App.vue";
 import Noir from './presets/Noir.js';
@@ -57,5 +58,6 @@ app.component('AccordionPanel', AccordionPanel);
 app.component('AccordionHeader', AccordionHeader);
 app.component('AccordionContent', AccordionContent);
 app.component('Badge', Badge);
+app.component('ProgressBar', ProgressBar);
 
 app.mount("#app");

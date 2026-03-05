@@ -532,3 +532,90 @@ jobs:
         with:
           name: portable-${{ matrix.platform }}
           path: postmock-*-portable.*
+
+  generate-updater-manifest:
+    name: Generate Updater Manifest
+    needs: [create-release, build-tauri]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Get version
+        id: version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Generate updater manifest
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          RELEASE_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # Extract changelog from release
+          CHANGELOG=$(gh release view "v${VERSION}" --json body -q .body || echo "See release notes for details")
+          
+          # Find signature files
+          LINUX_SIG=$(find artifacts -name "*.AppImage.sig" -type f | head -1)
+          WINDOWS_NSIS_SIG=$(find artifacts -name "*-setup.exe.sig" -type f | head -1)
+          WINDOWS_MSI_SIG=$(find artifacts -name "*.msi.sig" -type f | head -1)
+          MACOS_X64_SIG=$(find artifacts -name "*_x64.app.tar.gz.sig" -type f | head -1)
+          MACOS_ARM_SIG=$(find artifacts -name "*_aarch64.app.tar.gz.sig" -type f | head -1)
+          
+          # Read signatures
+          LINUX_SIGNATURE=""
+          WINDOWS_NSIS_SIGNATURE=""
+          WINDOWS_MSI_SIGNATURE=""
+          MACOS_X64_SIGNATURE=""
+          MACOS_ARM_SIGNATURE=""
+          
+          [ -f "$LINUX_SIG" ] && LINUX_SIGNATURE=$(cat "$LINUX_SIG")
+          [ -f "$WINDOWS_NSIS_SIG" ] && WINDOWS_NSIS_SIGNATURE=$(cat "$WINDOWS_NSIS_SIG")
+          [ -f "$WINDOWS_MSI_SIG" ] && WINDOWS_MSI_SIGNATURE=$(cat "$WINDOWS_MSI_SIG")
+          [ -f "$MACOS_X64_SIG" ] && MACOS_X64_SIGNATURE=$(cat "$MACOS_X64_SIG")
+          [ -f "$MACOS_ARM_SIG" ] && MACOS_ARM_SIGNATURE=$(cat "$MACOS_ARM_SIG")
+          
+          # Generate JSON manifest
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": $(echo "$CHANGELOG" | jq -Rs .),
+            "pub_date": "${RELEASE_DATE}",
+            "platforms": {
+              "linux-x86_64": {
+                "signature": "${LINUX_SIGNATURE}",
+                "url": "https://github.com/duwei0227/postmock/releases/download/v${VERSION}/postmock_${VERSION}_amd64.AppImage"
+              },
+              "windows-x86_64": {
+                "signature": "${WINDOWS_NSIS_SIGNATURE}",
+                "url": "https://github.com/duwei0227/postmock/releases/download/v${VERSION}/postmock_${VERSION}_x64-setup.exe"
+              },
+              "darwin-x86_64": {
+                "signature": "${MACOS_X64_SIGNATURE}",
+                "url": "https://github.com/duwei0227/postmock/releases/download/v${VERSION}/postmock_x64.app.tar.gz"
+              },
+              "darwin-aarch64": {
+                "signature": "${MACOS_ARM_SIGNATURE}",
+                "url": "https://github.com/duwei0227/postmock/releases/download/v${VERSION}/postmock_aarch64.app.tar.gz"
+              }
+            }
+          }
+          EOF
+          
+          echo "Generated latest.json:"
+          cat latest.json | jq .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload manifest to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          files: latest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
