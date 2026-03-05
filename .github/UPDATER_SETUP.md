@@ -5,7 +5,7 @@
 ## 参考文档
 
 - [Tauri Updater 官方文档](https://v2.tauri.app/plugin/updater/)
-- 查询时间：2024-03-05
+- 查询时间：2026-03-05
 
 ## 1. 生成签名密钥
 
@@ -92,7 +92,7 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD="your_password"
 {
   "version": "0.2.0",
   "notes": "Release notes here",
-  "pub_date": "2024-03-05T10:00:00Z",
+  "pub_date": "2026-03-05T10:00:00Z",
   "platforms": {
     "linux-x86_64": {
       "signature": "signature_content_here",
