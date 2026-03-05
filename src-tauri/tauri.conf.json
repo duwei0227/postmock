@@ -93,7 +93,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IHJzaWduIGVuY3J5cHRlZCBzZWNyZXQga2V5ClJXUlRZMEl5d1RnWXkyL1FycU1PTVZCanpsbGRLV3ZLdmc5NTMzb2tlRWtSaXc3bGxoa0FBQkFBQUFBQUFBQUFBQUlBQUFBQUtJQWNPc0hzcUltWmI0ZmNiVFpYOTZJZFV3WS8vazB0OTZaQWVmTHZlZ29rcFFlblp6dGRSb0EycjV6UFpucDRuaVZCbW5UYzZwNCtMS2pnVGIzanpabDNzS1ArTzhmbHhjVi9ZVTdsMHBDdWJIcHI3UXIySTVSV1lrUGdPTjZFQ2VOZmZkd3liV2s9Cg==duwei@probiecoder",
+      "pubkey": "RWRTY0IywTgYy2/QrqMOMVBjzlldKWvKvg9533okeEkRiw7llhkAABAAAAAAAAAAAAIAAAAKIAcOsHsqImZb4fcbTZX96IdUwY//k0t96ZAefLvegokpQenZztdRoA2r5zPZnp4niVBmnTc6p4+LKjgTb3jzZl3sKP+O8flxcV/YU7l0pCubHpr7Qr2I5RWYkPgON6ECeNffdwybWk=",
       "endpoints": [
         "https://github.com/duwei0227/postmock/releases/latest/download/latest.json"
       ]
