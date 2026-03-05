@@ -224,6 +224,9 @@ jobs:
         run: |
           KEY_VALUE="${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}"
           
+          echo "Key length: ${#KEY_VALUE}"
+          echo "Key starts with: ${KEY_VALUE:0:10}"
+          
           # 检查是否是 base64 编码（以 dW50 开头）
           if [[ "$KEY_VALUE" == dW50* ]]; then
             echo "Detected base64 encoded key, decoding..."
@@ -234,6 +237,9 @@ jobs:
             # 验证解码结果
             if [ -n "$DECODED_KEY" ]; then
               echo "Successfully decoded key"
+              echo "Decoded key length: ${#DECODED_KEY}"
+              echo "Decoded key first line: $(echo "$DECODED_KEY" | head -1)"
+              
               {
                 echo "TAURI_SIGNING_PRIVATE_KEY<<EOF"
                 printf '%s' "$DECODED_KEY"
@@ -241,13 +247,8 @@ jobs:
                 echo "EOF"
               } >> $GITHUB_ENV
             else
-              echo "Failed to decode, using original key"
-              {
-                echo "TAURI_SIGNING_PRIVATE_KEY<<EOF"
-                printf '%s' "$KEY_VALUE"
-                echo ""
-                echo "EOF"
-              } >> $GITHUB_ENV
+              echo "❌ Failed to decode key"
+              exit 1
             fi
           else
             echo "Key appears to be already decoded or in plain text format"
