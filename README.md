@@ -1,162 +1,265 @@
 # PostMock
 
-一个现代化的 API 测试工具，基于 Tauri 和 Vue 3 构建的跨平台桌面应用。
+<div align="center">
+
+一个现代化、轻量级的 API 测试工具
 
 ![GitHub release](https://img.shields.io/github/v/release/duwei0227/postmock)
 ![GitHub License](https://img.shields.io/github/license/duwei0227/postmock)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)
+
+[下载](#下载安装) • [功能特性](#功能特性) • [使用指南](#使用指南) • [更新日志](CHANGELOG.md)
+
+</div>
 
 <!-- 
 TODO: 添加应用截图
 ![主界面](screenshots/main.png)
 -->
 
+## 简介
+
+PostMock 是一个跨平台的 API 测试工具，专为开发者设计，提供简洁直观的界面和强大的功能。无论是日常接口调试还是自动化测试，PostMock 都能满足你的需求。
+
+### 为什么选择 PostMock？
+
+- 🚀 **快速启动** - 轻量级设计，秒速启动，低内存占用
+- 💻 **跨平台** - 支持 Windows、macOS 和 Linux
+- 🎨 **现代界面** - 简洁美观的暗色主题
+- 📦 **便携版本** - 提供免安装版本，解压即用
+- 🔄 **自动更新** - 应用内一键更新，无需重新下载
+- 🆓 **完全免费** - 开源软件，永久免费使用
+
 ## 功能特性
 
-- 🚀 HTTP 请求测试 - 支持 GET、POST、PUT、DELETE、PATCH 等方法
-- 📁 集合管理 - 组织和管理你的 API 请求
-- 🌍 环境变量 - 支持多环境配置和变量替换
-- 📝 请求历史 - 自动记录所有请求历史
-- 🧪 自动化测试 - 内置测试断言和全局变量设置
-- 🎨 暗色模式 - 支持明暗主题切换
-- 💾 数据持久化 - 本地文件系统存储
-- 📦 导入导出 - 支持集合的导入和导出
-- 🔄 cURL 导入 - 快速从 cURL 命令创建请求
+### 核心功能
 
-## 技术栈
+#### 🌐 HTTP 请求测试
+- 支持所有常用 HTTP 方法（GET、POST、PUT、DELETE、PATCH、HEAD、OPTIONS）
+- 灵活配置请求参数、Headers 和 Body
+- 支持多种 Body 格式（JSON、Form Data、Raw、Binary）
+- 清晰展示响应数据、Headers 和状态码
+- 显示请求响应时间
 
-- **前端框架**: Vue 3 + Vite
-- **桌面框架**: Tauri 2
-- **UI 组件**: PrimeVue + TailwindCSS
-- **状态管理**: Pinia
-- **代码编辑器**: CodeMirror 6
-- **HTTP 客户端**: Tauri Plugin HTTP
+#### 📥 文件下载
+- 一键下载 API 响应文件
+- 智能识别文件名和类型
+- 支持 50+ 种常见文件格式
+
+#### 📁 集合管理
+- 创建和组织请求集合
+- 使用文件夹分组管理请求
+- 导入导出集合（JSON 格式）
+- 拖拽排序请求
+
+#### 🌍 环境变量
+- 创建多个环境配置（开发、测试、生产等）
+- 使用 `{{变量名}}` 语法在请求中引用变量
+- 快速切换环境
+- 支持全局变量
+
+#### 📝 请求历史
+- 自动记录所有发送的请求
+- 搜索和过滤历史记录
+- 从历史快速恢复请求
+- 清理历史记录
+
+#### 🧪 自动化测试
+- 验证响应状态码
+- 检查 JSON 字段值
+- 测试响应时间
+- 提取响应数据到变量
+- 查看测试结果
+
+#### 📋 导入功能
+- 从 cURL 命令导入请求
+- 自动解析 URL、Headers 和 Body
+
+#### 🔄 应用内更新
+- 自动检查新版本
+- 查看更新内容
+- 一键下载并安装更新
 
 ## 下载安装
 
-访问 [Releases](https://github.com/duwei0227/postmock/releases) 页面下载适合你操作系统的安装包：
+访问 [Releases](https://github.com/duwei0227/postmock/releases/latest) 页面下载最新版本。
 
-**Windows:**
-- `.msi` - 安装程序（推荐）
-- `.exe` - NSIS 安装程序
-- `.zip` - 便携版（解压即用）
+### Windows
 
-**macOS:**
-- `.dmg` - 磁盘映像
+| 安装包类型 | 说明 | 推荐 |
+|----------|------|------|
+| `.msi` | Windows 安装程序 | ⭐ 推荐 |
+| `.exe` | NSIS 安装程序 | |
+| `.zip` | 便携版（解压即用） | 适合 U 盘使用 |
 
-**Linux:**
-- `.AppImage` - 便携版（无需安装）
-- `.deb` - Debian/Ubuntu 安装包
-- `.rpm` - Fedora/RHEL/CentOS 安装包
-- `.tar.gz` - 便携版（解压即用）
+### macOS
 
-## 开发环境设置
+| 安装包类型 | 说明 | 推荐 |
+|----------|------|------|
+| `.dmg` | macOS 磁盘映像 | ⭐ 推荐 |
 
-### 前置要求
+**注意**: macOS 用户首次打开可能需要在"系统偏好设置 → 安全性与隐私"中允许运行。
 
-- Node.js 18+
-- Rust 1.70+
-- 系统依赖（Linux）:
-  ```bash
-  sudo apt-get update
-  sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-  ```
+### Linux
 
-### 安装依赖
+| 安装包类型 | 说明 | 推荐 |
+|----------|------|------|
+| `.AppImage` | 便携版（无需安装） | ⭐ 推荐 |
+| `.deb` | Debian/Ubuntu 安装包 | |
+| `.rpm` | Fedora/RHEL/CentOS 安装包 | |
+| `.tar.gz` | 便携版（解压即用） | |
 
+**AppImage 使用方法**:
 ```bash
-npm install
+chmod +x PostMock_*.AppImage
+./PostMock_*.AppImage
 ```
 
-### 开发模式
-
+**便携版使用方法**:
 ```bash
-npm run tauri dev
-```
-
-### 构建应用
-
-```bash
-npm run tauri build
+tar -xzf PostMock_*.tar.gz
+cd PostMock
+./install-desktop.sh  # 可选：创建桌面快捷方式
+./postmock.sh
 ```
 
 ## 使用指南
 
-### 创建请求
+### 快速开始
 
-1. 点击工具栏的 "New Request" 按钮或使用快捷键 `Ctrl+N` / `Cmd+N`
-2. 选择 HTTP 方法（GET、POST 等）
-3. 输入请求 URL
-4. 配置请求参数、Headers、Body 等
-5. 点击 "Send" 发送请求
+#### 1. 发送第一个请求
 
-### 使用环境变量
+1. 启动 PostMock
+2. 点击工具栏的 **New Request** 按钮（或按 `Ctrl+N`）
+3. 选择 HTTP 方法（如 GET）
+4. 输入 URL（如 `https://api.github.com/users/github`）
+5. 点击 **Send** 按钮
+6. 查看响应结果
 
-1. 在环境管理器中创建环境
-2. 添加变量，如 `baseUrl = https://api.example.com`
-3. 在请求中使用 `{{baseUrl}}/users` 引用变量
-4. 切换不同环境快速测试
+#### 2. 保存请求到集合
 
-### 自动化测试
+1. 发送请求后，点击 **Save** 按钮
+2. 选择或创建一个集合
+3. 输入请求名称
+4. 点击保存
 
-在 Tests 标签页中配置：
+#### 3. 使用环境变量
 
-- **状态码测试**: 验证响应状态码
-- **JSON 字段测试**: 使用 JSONPath 验证响应数据
-- **全局变量**: 从响应中提取数据保存为全局变量
+1. 点击右上角的环境选择器
+2. 点击 **Manage Environments**
+3. 创建新环境（如"开发环境"）
+4. 添加变量：
+   - 名称：`baseUrl`
+   - 值：`https://api.example.com`
+5. 在请求中使用：`{{baseUrl}}/users`
+6. 切换环境即可切换不同的 API 地址
+
+### 高级功能
+
+#### 自动化测试
+
+在请求的 **Tests** 标签页中添加测试：
+
+**验证状态码**:
+```
+状态码 = 200
+```
+
+**验证 JSON 字段**:
+```
+$.data.name = "John"
+$.data.age > 18
+```
+
+**提取数据到变量**:
+```
+token = $.data.token
+```
+
+#### 文件下载
+
+1. 发送会返回文件的请求
+2. 点击 **Send And Download** 按钮（下拉菜单）
+3. 选择保存位置
+4. 文件会自动下载并保存
+
+#### 导入 cURL 命令
+
+1. 复制 cURL 命令
+2. 点击 **Import** → **From cURL**
+3. 粘贴命令
+4. 点击导入
 
 ### 快捷键
 
-- `Ctrl+N` / `Cmd+N` - 创建新请求
-- `Ctrl+S` / `Cmd+S` - 保存当前请求
-- `Ctrl+Shift+D` / `Cmd+Shift+D` - 切换主题
-- `Ctrl+D` / `Cmd+D` - 复制选中项
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+N` / `Cmd+N` | 创建新请求 |
+| `Ctrl+S` / `Cmd+S` | 保存当前请求 |
+| `Ctrl+Enter` / `Cmd+Enter` | 发送请求 |
+| `Ctrl+D` / `Cmd+D` | 复制选中项 |
 
-## 项目结构
+## 常见问题
 
-```
-postmock/
-├── src/                    # Vue 前端源码
-│   ├── components/         # Vue 组件
-│   ├── stores/            # Pinia 状态管理
-│   ├── services/          # 服务层（存储、导入导出）
-│   ├── types/             # TypeScript 类型定义
-│   └── utils/             # 工具函数
-├── src-tauri/             # Tauri 后端
-│   ├── src/               # Rust 源码
-│   └── icons/             # 应用图标
-└── .github/               # GitHub Actions 配置
-    └── workflows/         # CI/CD 工作流
-```
+### 如何更新应用？
 
-## 贡献指南
+点击菜单栏 **Help** → **Check for Updates**，如有新版本会自动提示下载安装。
 
-欢迎提交 Issue 和 Pull Request！
+### 数据存储在哪里？
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+所有数据（集合、环境、历史）都存储在本地文件系统：
+- Windows: `%APPDATA%\cn.probiecoder.postmock`
+- macOS: `~/Library/Application Support/cn.probiecoder.postmock`
+- Linux: `~/.local/share/cn.probiecoder.postmock`
+
+### 如何备份数据？
+
+1. 导出所有集合（**Collections** → **Export**）
+2. 保存环境配置（**Environments** → **Export**）
+3. 或直接备份上述数据目录
+
+### 支持导入 Postman 集合吗？
+
+当前版本暂不支持，计划在未来版本中添加。
+
+## 反馈与支持
+
+### 问题反馈
+
+如果遇到问题或有功能建议，请访问：
+- [GitHub Issues](https://github.com/duwei0227/postmock/issues) - 报告 Bug
+- [GitHub Discussions](https://github.com/duwei0227/postmock/discussions) - 功能建议和讨论
+
+### 贡献代码
+
+欢迎提交 Pull Request！请查看 [贡献指南](CONTRIBUTING.md)（如有）。
 
 ## 许可证
 
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
-
-## 作者
-
-- [@duwei0227](https://github.com/duwei0227)
+本项目采用 [MIT 许可证](LICENSE)。
 
 ## 相关链接
 
 - [GitHub 仓库](https://github.com/duwei0227/postmock)
-- [问题反馈](https://github.com/duwei0227/postmock/issues)
 - [发布页面](https://github.com/duwei0227/postmock/releases)
 - [更新日志](CHANGELOG.md)
 
 ## 致谢
 
+PostMock 的开发离不开以下优秀的开源项目：
+
 - [Tauri](https://tauri.app/) - 跨平台桌面应用框架
 - [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
 - [PrimeVue](https://primevue.org/) - Vue UI 组件库
 - [CodeMirror](https://codemirror.net/) - 代码编辑器组件
+- [Vite](https://vitejs.dev/) - 下一代前端构建工具
+
+---
+
+<div align="center">
+
+**如果觉得 PostMock 有用，请给个 ⭐ Star 支持一下！**
+
+Made with ❤️ by [@duwei0227](https://github.com/duwei0227)
+
+</div>
