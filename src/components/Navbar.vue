@@ -129,15 +129,20 @@ const handleInstallUpdate = async () => {
     console.log('Starting update download and installation...');
     
     // Download and install the update with progress tracking
+    let contentLength = 0;
+    let downloaded = 0;
+    
     await updateInfo.value.downloadAndInstall((event) => {
       switch (event.event) {
         case 'Started':
-          console.log(`Started downloading ${event.data.contentLength} bytes`);
+          contentLength = event.data.contentLength || 0;
+          console.log(`Started downloading ${contentLength} bytes`);
           break;
         case 'Progress':
-          const downloaded = event.data.chunkLength;
-          const total = event.data.contentLength || 1;
-          downloadProgress.value = Math.round((downloaded / total) * 100);
+          downloaded += event.data.chunkLength || 0;
+          if (contentLength > 0) {
+            downloadProgress.value = Math.round((downloaded / contentLength) * 100);
+          }
           console.log(`Download progress: ${downloadProgress.value}%`);
           break;
         case 'Finished':
