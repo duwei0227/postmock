@@ -16,6 +16,36 @@
 ### 修复
 - 待发布的问题修复
 
+## [0.1.1] - 2026-03-09
+
+### 新增
+- **请求取消功能**：在发送请求时可以随时点击 Cancel 按钮取消正在进行的请求
+- **请求加载状态**：Response 区域显示 "Sending Request..." 加载遮罩层，提供更好的视觉反馈
+- **JSON 编辑器变量提示**：JSON Body 编辑器支持变量自动完成和参数提示
+  - 输入 `{{` 自动显示所有可用变量（环境变量、全局变量、内置变量）
+  - 内置变量（如 `$date`、`$time`、`$datetime` 等）优先显示
+  - 输入函数参数时（如 `$date(`）显示详细的参数说明面板
+  - 支持模糊搜索变量名
+  - 按 Esc 键关闭参数提示面板
+
+### 变更
+- **测试结果处理**：取消请求后，所有启用的断言将标记为失败，不会设置全局变量
+- **AbortController 支持**：使用标准的 AbortController API 实现请求取消功能
+- **错误处理优化**：取消的请求不会显示错误提示，避免误导用户
+
+### 修复
+- 修复 JSON 编辑器自动完成列表中选中项对比度不足的问题
+  - 亮色主题：选中项使用蓝色背景（#3b82f6）和白色文字
+  - 暗色主题：选中项使用深蓝色背景（#2563eb）和白色文字
+- 修复内置变量（`$date`、`$time` 等）在自动完成列表中不显示的问题
+- 优化变量自动完成的触发和匹配逻辑
+
+### 技术改进
+- 在 `sendRequest` 和 `sendAndDownload` 函数中集成 AbortController
+- 添加 `cancelRequest` 函数处理请求取消逻辑
+- 改进 JSON 编辑器的 CodeMirror 自动完成配置
+- 优化 CSS 选择器优先级，确保样式正确应用
+
 ## [0.1.0] - 2026-03-06
 
 PostMock 首个公开发布版本！一个现代化的跨平台 API 测试工具。
@@ -112,5 +142,6 @@ PostMock 是一个轻量级、跨平台的 API 测试工具，旨在为开发者
 
 ---
 
-[Unreleased]: https://github.com/duwei0227/postmock/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/duwei0227/postmock/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/duwei0227/postmock/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/duwei0227/postmock/releases/tag/v0.1.0

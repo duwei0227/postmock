@@ -277,6 +277,7 @@ const responseHeight = ref(300); // 默认响应区域高度
 const isResizing = ref(false);
 const isResponseCollapsed = ref(true); // 默认收起
 const testResults = ref(null); // 存储测试结果
+let abortController = null; // 用于取消请求
 
 // 监听 props.request.name 的变化，同步更新 localRequest.name
 watch(
@@ -676,7 +677,52 @@ const getExtensionFromContentType = (contentType) => {
   return mimeToExt[mimeType] || '';
 };
 
+const cancelRequest = () => {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+    isLoading.value = false;
+    
+    // 生成取消请求的测试结果 - 所有断言失败
+    testResults.value = {
+      statusCode: statusCodeTests.value
+        .filter(test => test.enabled)
+        .map((test, index) => ({
+          index,
+          passed: false,
+          message: `Request cancelled - Status code test failed`,
+          description: test.description
+        })),
+      jsonFields: jsonFieldTests.value
+        .filter(test => test.enabled && test.jsonPath)
+        .map((test, index) => ({
+          index,
+          passed: false,
+          message: `Request cancelled - JSON field test failed`,
+          description: test.description,
+          actualValue: undefined,
+          operator: test.operator,
+          expectedValue: test.expectedValue,
+          jsonPath: test.jsonPath
+        })),
+      globalVars: []
+    };
+    
+    if (window.$toast) {
+      window.$toast.add({
+        severity: 'info',
+        summary: 'Cancelled',
+        detail: 'Request cancelled by user',
+        life: 2000
+      });
+    }
+  }
+};
+
 const sendRequest = async () => {
+  // 创建新的 AbortController
+  abortController = new AbortController();
+  
   isLoading.value = true;
   isResponseCollapsed.value = false; // 发送请求时展开响应区域
   const startTime = Date.now();
@@ -769,11 +815,12 @@ const sendRequest = async () => {
     
     consoleLog.requestBody = body;
 
-    // 发送请求
+    // 发送请求（添加 signal 支持取消）
     const fetchResponse = await fetch(url, {
       method: localRequest.value.method,
       headers,
-      body
+      body,
+      signal: abortController?.signal
     });
 
     const endTime = Date.now();
@@ -842,6 +889,13 @@ const sendRequest = async () => {
     }
   } catch (error) {
     const endTime = Date.now();
+    
+    // 检查是否是用户取消的请求
+    if (error.name === 'AbortError') {
+      console.log('Request was cancelled by user');
+      return; // 用户取消，不显示错误
+    }
+    
     response.value = {
       status: 0,
       statusText: 'Error',
@@ -864,10 +918,14 @@ const sendRequest = async () => {
     emit('add-console-log', consoleLog);
   } finally {
     isLoading.value = false;
+    abortController = null; // 清理 AbortController
   }
 };
 
 const sendAndDownload = async () => {
+  // 创建新的 AbortController
+  abortController = new AbortController();
+  
   isLoading.value = true;
   isResponseCollapsed.value = false;
   const startTime = Date.now();
@@ -930,11 +988,12 @@ const sendAndDownload = async () => {
       }
     }
 
-    // 发送请求
+    // 发送请求（添加 signal 支持取消）
     const fetchResponse = await fetch(url, {
       method: localRequest.value.method,
       headers,
-      body
+      body,
+      signal: abortController?.signal
     });
 
     const endTime = Date.now();
@@ -1053,6 +1112,13 @@ const sendAndDownload = async () => {
     }
   } catch (error) {
     const endTime = Date.now();
+    
+    // 检查是否是用户取消的请求
+    if (error.name === 'AbortError') {
+      console.log('Download request was cancelled by user');
+      return; // 用户取消，不显示错误
+    }
+    
     response.value = {
       status: 0,
       statusText: 'Error',
@@ -1075,6 +1141,7 @@ const sendAndDownload = async () => {
     }
   } finally {
     isLoading.value = false;
+    abortController = null; // 清理 AbortController
   }
 };
 
@@ -2404,20 +2471,38 @@ defineExpose({
 
           <TabPanel header="Body">
             <div class="p-4">
-              <div class="mb-4 flex gap-4">
-                <div 
-                  v-for="type in bodyTypes" 
-                  :key="type.value"
-                  class="flex items-center"
-                >
-                  <RadioButton 
-                    v-model="localRequest.body.type" 
-                    :inputId="type.value" 
-                    :value="type.value" 
+              <div class="mb-4 flex justify-between items-center">
+                <div class="flex gap-4">
+                  <div 
+                    v-for="type in bodyTypes" 
+                    :key="type.value"
+                    class="flex items-center"
+                  >
+                    <RadioButton 
+                      v-model="localRequest.body.type" 
+                      :inputId="type.value" 
+                      :value="type.value" 
+                    />
+                    <label :for="type.value" class="ml-2 text-sm cursor-pointer">
+                      {{ type.label }}
+                    </label>
+                  </div>
+                </div>
+                <div v-if="localRequest.body.type === 'json'" class="flex gap-2">
+                  <Button 
+                    icon="pi pi-copy"
+                    size="small"
+                    text
+                    title="Copy JSON"
+                    @click="copyRequestBody"
                   />
-                  <label :for="type.value" class="ml-2 text-sm cursor-pointer">
-                    {{ type.label }}
-                  </label>
+                  <Button 
+                    label="Beautify"
+                    size="small"
+                    text
+                    class="beautify-btn"
+                    @click="beautifyJson"
+                  />
                 </div>
               </div>
 
@@ -2553,25 +2638,10 @@ defineExpose({
 
               <!-- JSON / Raw -->
               <div v-else-if="localRequest.body.type === 'json'">
-                <div class="mb-2 flex justify-end gap-2">
-                  <Button 
-                    icon="pi pi-copy"
-                    size="small"
-                    text
-                    title="Copy JSON"
-                    @click="copyRequestBody"
-                  />
-                  <Button 
-                    label="Beautify"
-                    size="small"
-                    text
-                    class="beautify-btn"
-                    @click="beautifyJson"
-                  />
-                </div>
                 <JsonEditor 
                   v-model="localRequest.body.raw"
                   placeholder='{"key": "value"}'
+                  :availableVariables="availableVariables"
                 />
               </div>
             </div>
@@ -2917,7 +2987,27 @@ defineExpose({
       </div>
 
       <!-- Response Section -->
-      <div class="border-t border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-950 flex flex-col" :style="{ height: isResponseCollapsed ? '40px' : `${responseHeight}px` }">
+      <div class="border-t border-surface-200 dark:border-surface-700 bg-surface-0 dark:bg-surface-950 flex flex-col relative" :style="{ height: isResponseCollapsed ? '40px' : `${responseHeight}px` }">
+        <!-- Loading Overlay - 覆盖整个 Response 区域 -->
+        <div 
+          v-if="isLoading && !isResponseCollapsed"
+          class="absolute inset-0 bg-surface-0/50 dark:bg-surface-950/50 backdrop-blur-[2px] z-50 flex items-center justify-center"
+        >
+          <div class="flex flex-col items-center gap-4 p-6 bg-surface-0 dark:bg-surface-900 rounded-lg shadow-lg border border-surface-200 dark:border-surface-700">
+            <div class="flex items-center gap-3">
+              <i class="pi pi-spin pi-spinner text-2xl text-primary"></i>
+              <span class="text-lg font-medium text-surface-900 dark:text-surface-50">Sending Request...</span>
+            </div>
+            <Button 
+              label="Cancel"
+              icon="pi pi-times"
+              severity="danger"
+              outlined
+              @click="cancelRequest"
+            />
+          </div>
+        </div>
+        
         <!-- Resize Handle (only when expanded) -->
         <div 
           v-if="!isResponseCollapsed"
