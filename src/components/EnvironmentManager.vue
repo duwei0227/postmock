@@ -325,19 +325,17 @@ const openVariablesView = () => {
     }
   }
   
-  // 2. Tests 全局变量（从 localStorage 或其他地方获取）
+  // 2. 全局变量（从 store 获取）
   const globalVars = [];
-  try {
-    const testsGlobals = localStorage.getItem('testsGlobalVariables');
-    if (testsGlobals) {
-      const parsed = JSON.parse(testsGlobals);
-      Object.entries(parsed).forEach(([key, value]) => {
-        globalVars.push({ key, value });
+  environmentsStore.globalVariables.forEach(v => {
+    if (v.key && v.enabled !== false) {
+      globalVars.push({
+        key: v.key,
+        value: v.value,
+        enabled: v.enabled !== false
       });
     }
-  } catch (error) {
-    console.error('Failed to load tests global variables:', error);
-  }
+  });
   
   // 3. Sequence 变量 - 只显示当前请求中使用的
   const sequences = [];
@@ -1069,12 +1067,30 @@ const replaceVariables = (str) => {
   return result;
 };
 
+// 设置全局变量的方法
+const setGlobalVariable = (key, value) => {
+  console.log('[EnvironmentManager] setGlobalVariable called:', key, value);
+  console.log('[EnvironmentManager] environmentsStore:', environmentsStore);
+  console.log('[EnvironmentManager] Current globalVariables before:', environmentsStore.globalVariables);
+  
+  environmentsStore.setGlobalVariable(key, String(value), true);
+  
+  console.log('[EnvironmentManager] Current globalVariables after:', environmentsStore.globalVariables);
+  console.log('[EnvironmentManager] Saving to storage...');
+  
+  // 保存到持久化存储
+  environmentsStore.saveEnvironments();
+  
+  console.log('[EnvironmentManager] Save complete');
+};
+
 defineExpose({
   getCurrentEnvironmentVariables,
   getAllAvailableVariables,
   replaceVariables,
   currentEnvironment,
-  openCreateDialog
+  openCreateDialog,
+  setGlobalVariable
 });
 </script>
 

@@ -230,36 +230,71 @@ const executeTests = (responseData) => {
       });
     });
     
-    // 3. 设置全局变量
-    globalVariables.value.forEach((variable, index) => {
-      if (!variable.enabled || !variable.variableName) return;
-      
-      let value;
-      
-      // 根据类型决定值的来源
-      if (variable.valueType === 'customValue') {
-        // 使用自定义值
-        value = variable.customValue;
-      } else {
-        // 使用JSON路径提取值
-        if (!variable.jsonPath || !jsonData) return;
-        value = extractValueFromJsonPath(jsonData, variable.jsonPath);
-      }
-      
-      if (value !== undefined && props.environmentManager) {
-        const manager = props.environmentManager.value;
-        if (manager && typeof manager.setGlobalVariable === 'function') {
-          manager.setGlobalVariable(variable.variableName, value);
-          
-          results.globalVars.push({
-            index,
-            success: true,
-            message: `Set ${variable.variableName} = ${value}`,
-            description: variable.description
-          });
+    // 检查所有断言是否都通过
+    const allStatusTestsPassed = results.statusCode.every(r => r.passed);
+    const allJsonTestsPassed = results.jsonFields.every(r => r.passed);
+    const allAssertionsPassed = allStatusTestsPassed && allJsonTestsPassed;
+    
+    console.log('[HttpRequest] All assertions passed:', allAssertionsPassed);
+    console.log('[HttpRequest] Status tests passed:', allStatusTestsPassed, 'JSON tests passed:', allJsonTestsPassed);
+    
+    // 3. 设置全局变量（仅在所有断言通过时）
+    if (allAssertionsPassed) {
+      globalVariables.value.forEach((variable, index) => {
+        if (!variable.enabled || !variable.variableName) return;
+        
+        let value;
+        
+        // 根据类型决定值的来源
+        if (variable.valueType === 'customValue') {
+          // 使用自定义值
+          value = variable.customValue;
+          console.log(`[HttpRequest] Using custom value for ${variable.variableName}:`, value);
+        } else {
+          // 使用JSON路径提取值
+          if (!variable.jsonPath || !jsonData) {
+            console.log(`[HttpRequest] Missing jsonPath or jsonData for ${variable.variableName}`);
+            return;
+          }
+          value = extractValueFromJsonPath(jsonData, variable.jsonPath);
+          console.log(`[HttpRequest] Extracted value from ${variable.jsonPath}:`, value);
         }
-      }
-    });
+        
+        if (value !== undefined && props.environmentManager) {
+          console.log('[HttpRequest] environmentManager exists, attempting to set global variable');
+          
+          // environmentManager 可能直接是组件实例，也可能是 ref
+          let manager = props.environmentManager;
+          
+          // 如果是 ref，通过 .value 访问
+          if (manager && typeof manager === 'object' && 'value' in manager && manager.value) {
+            console.log('[HttpRequest] environmentManager is a ref, accessing .value');
+            manager = manager.value;
+          }
+          
+          console.log('[HttpRequest] manager:', manager);
+          console.log('[HttpRequest] manager.setGlobalVariable type:', typeof manager?.setGlobalVariable);
+          
+          if (manager && typeof manager.setGlobalVariable === 'function') {
+            console.log(`[HttpRequest] Calling setGlobalVariable(${variable.variableName}, ${value})`);
+            manager.setGlobalVariable(variable.variableName, value);
+            
+            results.globalVars.push({
+              index,
+              success: true,
+              message: `Set ${variable.variableName} = ${value}`,
+              description: variable.description
+            });
+          } else {
+            console.error('[HttpRequest] setGlobalVariable is not a function or manager is null');
+          }
+        } else {
+          console.log('[HttpRequest] value is undefined or environmentManager is null');
+        }
+      });
+    } else {
+      console.log('[HttpRequest] Skipping global variable setting because some assertions failed');
+    }
   }
   
   return results;
@@ -278,6 +313,19 @@ const isResizing = ref(false);
 const isResponseCollapsed = ref(true); // 默认收起
 const testResults = ref(null); // 存储测试结果
 let abortController = null; // 用于取消请求
+
+// 从请求中加载 Tests 数据
+if (props.request.testsConfig) {
+  if (props.request.testsConfig.statusCodeTests) {
+    statusCodeTests.value = JSON.parse(JSON.stringify(props.request.testsConfig.statusCodeTests));
+  }
+  if (props.request.testsConfig.jsonFieldTests) {
+    jsonFieldTests.value = JSON.parse(JSON.stringify(props.request.testsConfig.jsonFieldTests));
+  }
+  if (props.request.testsConfig.globalVariables) {
+    globalVariables.value = JSON.parse(JSON.stringify(props.request.testsConfig.globalVariables));
+  }
+}
 
 // 监听 props.request.name 的变化，同步更新 localRequest.name
 watch(
@@ -884,8 +932,13 @@ const sendRequest = async () => {
     
     // 执行测试并保存结果
     if (response.value) {
+      console.log('[HttpRequest] Executing tests with response:', response.value);
+      console.log('[HttpRequest] globalVariables:', globalVariables.value);
+      console.log('[HttpRequest] props.environmentManager:', props.environmentManager);
+      
       testResults.value = executeTests(response.value);
-      console.log('Test Results:', testResults.value);
+      console.log('[HttpRequest] Test Results:', testResults.value);
+      console.log('[HttpRequest] Global vars set:', testResults.value?.globalVars);
     }
   } catch (error) {
     const endTime = Date.now();
@@ -1939,6 +1992,11 @@ const saveRequestDirectly = () => {
     body: { ...localRequest.value.body },
     auth: { ...localRequest.value.auth },
     tests: localRequest.value.tests,
+    testsConfig: {
+      statusCodeTests: JSON.parse(JSON.stringify(statusCodeTests.value)),
+      jsonFieldTests: JSON.parse(JSON.stringify(jsonFieldTests.value)),
+      globalVariables: JSON.parse(JSON.stringify(globalVariables.value))
+    },
     collectionId: localRequest.value.collectionId,
     folderId: localRequest.value.folderId,
     createdAt: localRequest.value.createdAt,
@@ -1994,6 +2052,11 @@ const saveRequest = () => {
     body: { ...localRequest.value.body },
     auth: { ...localRequest.value.auth },
     tests: localRequest.value.tests,
+    testsConfig: {
+      statusCodeTests: JSON.parse(JSON.stringify(statusCodeTests.value)),
+      jsonFieldTests: JSON.parse(JSON.stringify(jsonFieldTests.value)),
+      globalVariables: JSON.parse(JSON.stringify(globalVariables.value))
+    },
     collectionId: localRequest.value.collectionId,  // 保留旧位置信息
     folderId: localRequest.value.folderId,          // 保留旧位置信息
     createdAt: localRequest.value.createdAt,
@@ -3363,22 +3426,45 @@ defineExpose({
                         <i class="pi pi-globe"></i>
                         Global Variables Set
                       </h4>
-                      <div class="space-y-2">
-                        <div 
-                          v-for="(result, index) in testResults.globalVars"
-                          :key="index"
-                          class="flex items-start gap-3 p-3 rounded border bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800"
-                        >
-                          <i class="pi pi-check text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"></i>
-                          <div class="flex-1 min-w-0">
-                            <div class="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1 break-all">
-                              {{ result.message }}
-                            </div>
-                            <div v-if="result.description" class="text-xs text-surface-600 dark:text-surface-400">
-                              {{ result.description }}
-                            </div>
-                          </div>
-                        </div>
+                      <div class="border border-surface-200 dark:border-surface-700 rounded overflow-hidden">
+                        <table class="w-full text-sm">
+                          <thead class="bg-surface-50 dark:bg-surface-800">
+                            <tr>
+                              <th class="text-left px-4 py-2 font-semibold text-surface-700 dark:text-surface-300 border-b border-surface-200 dark:border-surface-700">
+                                Status
+                              </th>
+                              <th class="text-left px-4 py-2 font-semibold text-surface-700 dark:text-surface-300 border-b border-surface-200 dark:border-surface-700">
+                                Variable Name
+                              </th>
+                              <th class="text-left px-4 py-2 font-semibold text-surface-700 dark:text-surface-300 border-b border-surface-200 dark:border-surface-700">
+                                Value
+                              </th>
+                              <th class="text-left px-4 py-2 font-semibold text-surface-700 dark:text-surface-300 border-b border-surface-200 dark:border-surface-700">
+                                Description
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr 
+                              v-for="(result, index) in testResults.globalVars"
+                              :key="index"
+                              class="border-b border-surface-200 dark:border-surface-700 last:border-b-0 hover:bg-surface-50 dark:hover:bg-surface-800/50"
+                            >
+                              <td class="px-4 py-3">
+                                <i class="pi pi-check text-blue-600 dark:text-blue-400"></i>
+                              </td>
+                              <td class="px-4 py-3 font-mono text-blue-700 dark:text-blue-300 font-medium">
+                                {{ result.message.split(' = ')[0].replace('Set ', '') }}
+                              </td>
+                              <td class="px-4 py-3 font-mono text-surface-900 dark:text-surface-100">
+                                {{ result.message.split(' = ')[1] }}
+                              </td>
+                              <td class="px-4 py-3 text-surface-600 dark:text-surface-400">
+                                {{ result.description || '-' }}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>

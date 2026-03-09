@@ -51,6 +51,9 @@ export const useEnvironmentsStore = defineStore('environments', () => {
       if (active) {
         activeEnvironmentId.value = active.id;
       }
+      
+      // 加载全局变量
+      await loadGlobalVariables();
     } catch (e) {
       console.error('Failed to load environments:', e);
     } finally {
@@ -61,8 +64,29 @@ export const useEnvironmentsStore = defineStore('environments', () => {
   async function saveEnvironments() {
     try {
       await storageService.saveEnvironments(environments.value);
+      // 同时保存全局变量
+      await saveGlobalVariables();
     } catch (e) {
       console.error('Failed to save environments:', e);
+      throw e;
+    }
+  }
+
+  async function loadGlobalVariables() {
+    try {
+      const loaded = await storageService.loadGlobalVariables();
+      globalVariables.value = loaded;
+    } catch (e) {
+      console.error('Failed to load global variables:', e);
+      globalVariables.value = [];
+    }
+  }
+
+  async function saveGlobalVariables() {
+    try {
+      await storageService.saveGlobalVariables(globalVariables.value);
+    } catch (e) {
+      console.error('Failed to save global variables:', e);
       throw e;
     }
   }
@@ -133,6 +157,8 @@ export const useEnvironmentsStore = defineStore('environments', () => {
     } else {
       globalVariables.value.push({ key, value, enabled });
     }
+    // 自动保存
+    saveGlobalVariables();
   }
 
   function replaceVariables(text: string): string {

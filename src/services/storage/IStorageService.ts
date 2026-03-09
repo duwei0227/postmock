@@ -71,6 +71,18 @@ export interface IStorageService {
    */
   saveEnvironments(environments: Environment[]): Promise<void>;
 
+  /**
+   * Load global variables from storage
+   * @returns Array of global variables
+   */
+  loadGlobalVariables(): Promise<EnvironmentVariable[]>;
+
+  /**
+   * Save global variables to storage
+   * @param variables - Array of global variables to save
+   */
+  saveGlobalVariables(variables: EnvironmentVariable[]): Promise<void>;
+
   // History
   /**
    * Load history items from storage

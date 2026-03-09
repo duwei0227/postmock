@@ -273,6 +273,37 @@ export class FileSystemStorageService implements IStorageService {
     }
   }
 
+  async loadGlobalVariables(): Promise<EnvironmentVariable[]> {
+    try {
+      const filePath = await join(this.environmentsDir, 'global-variables.json');
+      const fileExists = await exists(filePath);
+      
+      if (!fileExists) {
+        return [];
+      }
+      
+      const content = await readTextFile(filePath);
+      return JSON.parse(content);
+    } catch (error) {
+      console.error('Failed to load global variables:', error);
+      return [];
+    }
+  }
+
+  async saveGlobalVariables(variables: EnvironmentVariable[]): Promise<void> {
+    const filePath = await join(this.environmentsDir, 'global-variables.json');
+    
+    try {
+      await writeTextFile(filePath, JSON.stringify(variables, null, 2));
+    } catch (error) {
+      throw new StorageError(
+        'Failed to save global variables',
+        ErrorCode.DISK_FULL,
+        error
+      );
+    }
+  }
+
   // History
   async loadHistory(): Promise<HistoryItem[]> {
     try {
