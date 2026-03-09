@@ -40,12 +40,6 @@
 - 修复内置变量（`$date`、`$time` 等）在自动完成列表中不显示的问题
 - 优化变量自动完成的触发和匹配逻辑
 
-### 技术改进
-- 在 `sendRequest` 和 `sendAndDownload` 函数中集成 AbortController
-- 添加 `cancelRequest` 函数处理请求取消逻辑
-- 改进 JSON 编辑器的 CodeMirror 自动完成配置
-- 优化 CSS 选择器优先级，确保样式正确应用
-
 ## [0.1.0] - 2026-03-06
 
 PostMock 首个公开发布版本！一个现代化的跨平台 API 测试工具。
